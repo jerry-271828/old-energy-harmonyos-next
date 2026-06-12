@@ -50,6 +50,16 @@ jobs:
           ohpm config set registry https://ohpm.openharmony.cn/ohpm/
           ohpm install --all
 
+      # 工具包内嵌 SDK 是 HarmonyOS 26.0.0(API 26, Beta1)，不含项目要求的 6.1.0(23) 组件。
+      # 仅在 CI 里把 compile/target 提到 26（compatible 保持 23，产物仍可装 API 23+ 设备），
+      # 源码里的 build-profile 不动，避免破坏本地 DevEco(6.x) 构建。
+      - name: Align compileSdkVersion with bundled SDK (CI only)
+        working-directory: harmony
+        run: |
+          sed -i 's/"compileSdkVersion": "6.1.0(23)"/"compileSdkVersion": "26.0.0(26)"/' build-profile.json5
+          sed -i 's/"targetSdkVersion": "6.1.0(23)"/"targetSdkVersion": "26.0.0(26)"/' build-profile.json5
+          grep SdkVersion build-profile.json5
+
       # 无签名配置，产物为 unsigned hap（装机需本地签名或在 DevEco 中签）
       - name: Build HAP (release, unsigned)
         working-directory: harmony
