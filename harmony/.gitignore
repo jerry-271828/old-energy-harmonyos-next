@@ -1,0 +1,12 @@
+/node_modules
+/oh_modules
+/.hvigor
+/.cxx
+/.test
+/build
+/.preview
+/local.properties
+/.idea
+*.iml
+.DS_Store
+nameCache.json

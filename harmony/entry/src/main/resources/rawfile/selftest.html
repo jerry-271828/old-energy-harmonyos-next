@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>betterxny bridge selftest</title>
+  <style>
+    body { font: 14px / 1.5 -apple-system, "Helvetica Neue", "PingFang SC", sans-serif; padding: 16px; }
+    h1 { font-size: 18px; }
+    button { padding: 10px 16px; margin: 4px 0; font-size: 14px; border-radius: 12px; border: 1px solid #ccc; background: #f6f6f6; }
+    pre { background: #1e1e1e; color: #b6e3ff; padding: 12px; border-radius: 8px; white-space: pre-wrap; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>betterxny bridge selftest</h1>
+  <p>用作开发期验证 ArkWeb 桥是否注入成功。把 <code>ENTRY_URL</code> 暂时指向 <code>resource://rawfile/selftest.html</code> 或本地 http server 即可。</p>
+  <button onclick="testStyle()">GM_addStyle</button>
+  <button onclick="testSetGet()">GM_setValue / GM_getValue</button>
+  <button onclick="testXhr()">GM_xmlhttpRequest</button>
+  <button onclick="testNotify()">GM_notification</button>
+  <button onclick="dumpInfo()">window.GM_info</button>
+  <pre id="log"></pre>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function log(...args) {
+      const ts = new Date().toISOString().substring(11, 19);
+      $('log').textContent += `[${ts}] ${args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')}\n`;
+    }
+    function testStyle() {
+      try { GM_addStyle('body { background: #fffbeb !important; }'); log('addStyle OK — background changed'); }
+      catch (e) { log('addStyle FAIL', e); }
+    }
+    function testSetGet() {
+      const k = 'selftest_' + Date.now();
+      const v = { counter: 1, hello: 'world', when: Date.now() };
+      GM_setValue(k, v);
+      const back = GM_getValue(k, null);
+      log('set/get', { k, sent: v, got: back, eq: JSON.stringify(v) === JSON.stringify(back) });
+    }
+    function testXhr() {
+      log('xhr → https://httpbin.org/get?probe=betterxny');
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: 'https://httpbin.org/get?probe=betterxny',
+        timeout: 8000,
+        onload: (r) => log('xhr.onload', { status: r.status, body: (r.responseText || '').slice(0, 200) }),
+        onerror: (e) => log('xhr.onerror', e),
+        ontimeout: () => log('xhr.ontimeout')
+      });
+    }
+    function testNotify() {
+      GM_notification({ title: '测试通知', text: '若收到则桥畅通 ' + new Date().toLocaleTimeString() });
+      log('notification published');
+    }
+    function dumpInfo() { log('GM_info', window.GM_info); }
+    log('shim status', { injected: !!window.__gm_injected, hasBridge: typeof AndroidBridge !== 'undefined' });
+  </script>
+</body>
+</html>

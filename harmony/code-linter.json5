@@ -1,0 +1,8 @@
+{
+  "files.encoding": "utf8",
+  "ruleSet": [
+    "plugin:@performance/recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {}
+}
