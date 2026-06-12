@@ -1,0 +1,68 @@
+name: Build HAP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'harmony/**'
+      - '.github/workflows/build-hap.yml'
+  workflow_dispatch:
+
+env:
+  CLT_BASE_URL: https://github.com/jerry-271828/harmonyos-commandline-tools/releases/download/v26.0.0.461
+  CLT_SHA256: b046da0a1a06fe13b3d82d198738abc54788d79c6c9d07c36617ec7fc31a3b3b
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # app_packing_tool.jar / hap-sign-tool.jar 需要 JRE，命令行工具包不自带
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 工具包 2.21GB 超过 Release 单文件 2GiB 上限，分两卷存放，下载后拼回
+      - name: Download HarmonyOS command-line-tools
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSL --retry 3 -O "$CLT_BASE_URL/clt.zip.part00" -O "$CLT_BASE_URL/clt.zip.part01"
+          cat clt.zip.part00 clt.zip.part01 > clt.zip
+          rm -f clt.zip.part00 clt.zip.part01
+          echo "$CLT_SHA256  clt.zip" | sha256sum -c
+          unzip -q clt.zip -d "$HOME"
+          rm -f clt.zip
+
+      - name: Set up build environment
+        run: |
+          CLT="$HOME/command-line-tools"
+          echo "$CLT/bin" >> "$GITHUB_PATH"
+          echo "$CLT/tool/node/bin" >> "$GITHUB_PATH"
+          # SDK 内嵌于工具包，指向包含 default/ 的 sdk 根目录
+          echo "DEVECO_SDK_HOME=$CLT/sdk" >> "$GITHUB_ENV"
+          echo "HOS_SDK_HOME=$CLT/sdk" >> "$GITHUB_ENV"
+
+      - name: ohpm install
+        working-directory: harmony
+        run: |
+          ohpm config set registry https://ohpm.openharmony.cn/ohpm/
+          ohpm install --all
+
+      # 无签名配置，产物为 unsigned hap（装机需本地签名或在 DevEco 中签）
+      - name: Build HAP (release, unsigned)
+        working-directory: harmony
+        run: hvigorw --mode module -p product=default -p buildMode=release assembleHap --no-daemon
+
+      - name: Locate artifacts
+        id: locate
+        run: |
+          find harmony/entry/build -name '*.hap' -print
+          echo "count=$(find harmony/entry/build -name '*.hap' | wc -l)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterxny-hap
+          path: harmony/entry/build/default/outputs/**/*.hap
+          if-no-files-found: error
