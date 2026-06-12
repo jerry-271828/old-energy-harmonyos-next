@@ -1,0 +1,22 @@
+# Keep all ArkTS @State / @Component properties from being renamed (handled by SDK).
+# Keep raw file injection helpers — they reference rawfile names as strings.
+-keep-file-name
+gm_shim
+viewport_fix
+pinyin-match
+main_pack
+pack2
+
+# Keep methods exposed to WebView JS bridge — JS references them by name.
+-keep-property-name
+getValue
+setValue
+showNotification
+xhrRequest
+attach
+bindController
+AndroidBridge
+__gm_xhr_resolve
+__gm_xhr_cbs
+__gm_injected
+unsafeWindow
