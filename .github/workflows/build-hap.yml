@@ -42,7 +42,6 @@ jobs:
           echo "$CLT/tool/node/bin" >> "$GITHUB_PATH"
           # SDK 内嵌于工具包，指向包含 default/ 的 sdk 根目录
           echo "DEVECO_SDK_HOME=$CLT/sdk" >> "$GITHUB_ENV"
-          echo "HOS_SDK_HOME=$CLT/sdk" >> "$GITHUB_ENV"
 
       - name: ohpm install
         working-directory: harmony
@@ -51,36 +50,23 @@ jobs:
           ohpm install --all
 
       # 工具包内嵌 SDK 是 HarmonyOS 26.0.0(API 26, Beta1)，不含项目要求的 6.1.0(23) 组件。
-      # 仅在 CI 里把 compile/target 提到 26（compatible 保持 23，产物仍可装 API 23+ 设备），
+      # hvigor 6.26 配套表里 HarmonyOS 26 的 API 串是 "26.0.0"（不是 "26"），所以写 26.0.0(26.0.0)。
+      # 仅在 CI 里把 compile/target 提到 26（compatible 保持 6.1.0(23)，产物仍可装 API 23+ 设备），
       # 源码里的 build-profile 不动，避免破坏本地 DevEco(6.x) 构建。
       - name: Align compileSdkVersion with bundled SDK (CI only)
         working-directory: harmony
         run: |
-          sed -i 's/"compileSdkVersion": "6.1.0(23)"/"compileSdkVersion": "26.0.0(26)"/' build-profile.json5
-          sed -i 's/"compatibleSdkVersion": "6.1.0(23)"/"compatibleSdkVersion": "26.0.0(26)"/' build-profile.json5
-          sed -i 's/"targetSdkVersion": "6.1.0(23)"/"targetSdkVersion": "26.0.0(26)"/' build-profile.json5
+          sed -i 's/"compileSdkVersion": "6.1.0(23)"/"compileSdkVersion": "26.0.0(26.0.0)"/' build-profile.json5
+          sed -i 's/"targetSdkVersion": "6.1.0(23)"/"targetSdkVersion": "26.0.0(26.0.0)"/' build-profile.json5
           grep SdkVersion build-profile.json5
-
-      - name: Debug SDK layout
-        run: |
-          df -h / | tail -1
-          ls "$HOME/command-line-tools/sdk/default/openharmony" "$HOME/command-line-tools/sdk/default/hms"
-          cat "$HOME/command-line-tools/sdk/default/openharmony/ets/oh-uni-package.json" || true
-          cat "$HOME/command-line-tools/sdk/default/hms/ets/oh-uni-package.json" || true
-          hvigorw -v || true
 
       # 无签名配置，产物为 unsigned hap（装机需本地签名或在 DevEco 中签）
       - name: Build HAP (release, unsigned)
         working-directory: harmony
-        run: |
-          set -o pipefail
-          hvigorw --mode module -p product=default -p buildMode=release assembleHap --no-daemon --stacktrace --debug 2>&1 | tail -80
+        run: hvigorw --mode module -p product=default -p buildMode=release assembleHap --no-daemon
 
       - name: Locate artifacts
-        id: locate
-        run: |
-          find harmony/entry/build -name '*.hap' -print
-          echo "count=$(find harmony/entry/build -name '*.hap' | wc -l)" >> "$GITHUB_OUTPUT"
+        run: find harmony/entry/build -name '*.hap' -print
 
       - uses: actions/upload-artifact@v4
         with:
