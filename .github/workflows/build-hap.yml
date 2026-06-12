@@ -57,6 +57,7 @@ jobs:
         working-directory: harmony
         run: |
           sed -i 's/"compileSdkVersion": "6.1.0(23)"/"compileSdkVersion": "26.0.0(26)"/' build-profile.json5
+          sed -i 's/"compatibleSdkVersion": "6.1.0(23)"/"compatibleSdkVersion": "26.0.0(26)"/' build-profile.json5
           sed -i 's/"targetSdkVersion": "6.1.0(23)"/"targetSdkVersion": "26.0.0(26)"/' build-profile.json5
           grep SdkVersion build-profile.json5
 
