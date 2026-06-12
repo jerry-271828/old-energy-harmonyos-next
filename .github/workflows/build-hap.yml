@@ -60,10 +60,20 @@ jobs:
           sed -i 's/"targetSdkVersion": "6.1.0(23)"/"targetSdkVersion": "26.0.0(26)"/' build-profile.json5
           grep SdkVersion build-profile.json5
 
+      - name: Debug SDK layout
+        run: |
+          df -h / | tail -1
+          ls "$HOME/command-line-tools/sdk/default/openharmony" "$HOME/command-line-tools/sdk/default/hms"
+          cat "$HOME/command-line-tools/sdk/default/openharmony/ets/oh-uni-package.json" || true
+          cat "$HOME/command-line-tools/sdk/default/hms/ets/oh-uni-package.json" || true
+          hvigorw -v || true
+
       # 无签名配置，产物为 unsigned hap（装机需本地签名或在 DevEco 中签）
       - name: Build HAP (release, unsigned)
         working-directory: harmony
-        run: hvigorw --mode module -p product=default -p buildMode=release assembleHap --no-daemon
+        run: |
+          set -o pipefail
+          hvigorw --mode module -p product=default -p buildMode=release assembleHap --no-daemon --stacktrace --debug 2>&1 | tail -80
 
       - name: Locate artifacts
         id: locate
