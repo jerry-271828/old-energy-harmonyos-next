@@ -12,7 +12,7 @@ import { GlassCard, EmptyView, LoadingView, SquishButton } from '../components/g
 import { StudyApi, StudyKind } from '../net/api/StudyApi';
 import { ReddotApi } from '../net/api/ReddotApi';
 import { CourseBlock, AttachmentEntity, CourseEntityInfo,
-  CourseStatistics } from '../models/Course';
+  CourseStatistics, CourseDetailParam } from '../models/Course';
 import { QuestionContent, AnswerRecord } from '../models/Question';
 import { SettingsStore } from '../store/SettingsStore';
 import { ApiClient } from '../net/ApiClient';
@@ -46,16 +46,21 @@ export struct CourseDetailPage {
   @Local private showAnswers: boolean = false;
   @Local private showTitleNav: boolean = false;
   @Local private submitting: boolean = false;
-  @Local private submitted: boolean = false;
-  @Local private canResubmit: boolean = false;
+  @Local private submitted: boolean = false;       // = entityInfo.mappingStatus === 1（已进入批阅/补交阶段）
+  @Local private hasQuestions: boolean = false;     // 内容里是否含题目块（无题不显示提交栏，对照前端 questionCounts>0）
   @Local private countdownSec: number = 0;
   @Local private uploadingQuestionId: number = 0;
+  // 点选乐观更新覆盖层：qid → studentAnswer。点击即写，给即时高亮反馈；
+  // 保存成功/失败后重拉 answers() 再清除对应项，回到服务端真值（含判分）。
+  @Local private pendingAnswers: Map<number, string> = new Map<number, string>();
+
+  private createTime: string = '';   // 列表项 createTime，补交时作为 courseBeginTime
 
   private scroller: Scroller = new Scroller();
   private countdownTimer: number = -1;
 
   aboutToAppear(): void {
-    // param is courseId (number)
+    // param 为 CourseDetailParam {id, createTime}；兼容旧版仅传 number/string
     const param = Nav.stack.getParamByName('courseDetail') as Object[];
     if (param.length > 0) {
       const raw: Object = param[param.length - 1];
@@ -63,6 +68,10 @@ export struct CourseDetailPage {
         this.entityId = raw as number;
       } else if (typeof raw === 'string') {
         this.entityId = parseInt(raw as string) || 0;
+      } else {
+        const p = raw as CourseDetailParam;
+        this.entityId = p.id;
+        this.createTime = p.createTime ?? '';
       }
     }
     if (this.entityId > 0) {
@@ -99,6 +108,15 @@ export struct CourseDetailPage {
       }
       this.titleAnchors = anchors;
 
+      // 是否含题目块（决定是否显示提交/补交栏，对照前端 questionCounts>0）
+      let qCount = 0;
+      for (let i = 0; i < this.blocks.length; i++) {
+        if (this.blocks[i].contentType === 2) {
+          qCount++;
+        }
+      }
+      this.hasQuestions = qCount > 0;
+
       // eliminate reddot
       try {
         if (this.kind === 'course') {
@@ -110,14 +128,12 @@ export struct CourseDetailPage {
         // non-critical
       }
 
-      // determine submit state
+      // 提交态：以 mappingStatus 为准（对照前端 0===mappingStatus 显「提交」，1=== 显「补交」）。
+      // 注意不要用 jobStatus——前端的提交栏/倒计时/统计全部以 mappingStatus 判定。
       if (this.entityInfo !== null) {
-        this.submitted = this.entityInfo.jobStatus === 1;
-        this.canResubmit = !this.submitted &&
-          this.entityInfo.courseResubmitTime !== null &&
-          this.entityInfo.courseResubmitTime.length > 0;
+        this.submitted = this.entityInfo.mappingStatus === 1;
 
-        // auto-submit countdown
+        // 仅未提交时跑自动提交倒计时
         if (!this.submitted && this.entityInfo.courseEndTime !== null) {
           this.startCountdown(this.entityInfo.courseEndTime, this.entityInfo.currTime);
         }
@@ -188,12 +204,13 @@ export struct CourseDetailPage {
     try {
       const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
       await api.submit(this.entityId);
-      this.submitted = true;
       if (this.countdownTimer >= 0) {
         clearInterval(this.countdownTimer);
         this.countdownTimer = -1;
       }
       QuickSubmitStore.remove(this.entityId);
+      // 重拉实体信息/作答/统计：mappingStatus 翻 1 后按钮自动变「补交」
+      await this.refreshState();
       hilog.info(DOMAIN, TAG, 'submitted entity %{public}d', this.entityId);
     } catch (e) {
       const err = e as Error;
@@ -207,14 +224,40 @@ export struct CourseDetailPage {
     this.submitting = true;
     try {
       const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
-      await api.resubmit(this.entityId);
-      this.submitted = true;
+      // courseBeginTime 取列表项 createTime；缺失时退回 entityInfo.courseBeginTime
+      let beginTime = this.createTime;
+      if (beginTime.length === 0 && this.entityInfo !== null
+        && this.entityInfo.courseBeginTime !== null) {
+        beginTime = this.entityInfo.courseBeginTime;
+      }
+      await api.resubmit(this.entityId, beginTime);
+      // 补交后 mappingStatus 仍为 1，按钮保持「补交」——可多次补交
+      await this.refreshState();
       hilog.info(DOMAIN, TAG, 'resubmitted entity %{public}d', this.entityId);
     } catch (e) {
       const err = e as Error;
       hilog.error(DOMAIN, TAG, 'resubmit failed: %{public}s', err.message);
     } finally {
       this.submitting = false;
+    }
+  }
+
+  // 提交/补交后刷新：重拉 entityInfo + answers，并按 mappingStatus 重算提交态。
+  private async refreshState(): Promise<void> {
+    const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
+    try {
+      const results = await Promise.all([
+        api.entityInfo(this.entityId),
+        api.answers(this.entityId)
+      ]);
+      this.entityInfo = results[0] as CourseEntityInfo;
+      this.answers = results[1] as AnswerRecord[];
+      this.pendingAnswers = new Map<number, string>();
+      this.submitted = this.entityInfo.mappingStatus === 1;
+      this.loadStatistics(api);
+    } catch (e) {
+      const err = e as Error;
+      hilog.warn(DOMAIN, TAG, 'refreshState failed: %{public}s', err.message);
     }
   }
 
@@ -526,57 +569,75 @@ export struct CourseDetailPage {
   }
 
   private isOptionSelected(q: QuestionContent, opt: string): boolean {
-    const rec = this.findAnswer(q.id);
-    if (rec === null || rec.studentAnswer === null) {
+    const ans = this.currentAnswer(q.id);
+    if (ans.length === 0) {
       return false;
     }
-    return rec.studentAnswer.indexOf(opt) >= 0;
+    // studentAnswer 为逗号分隔（单选 "A"，多选 "A,B"）——按项精确匹配，避免子串误判
+    const parts = ans.split(',');
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].trim() === opt) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 当前作答：优先读乐观覆盖层（点击即时反馈），否则读服务端记录。
+  private currentAnswer(questionId: number): string {
+    if (this.pendingAnswers.has(questionId)) {
+      const v = this.pendingAnswers.get(questionId);
+      return v !== undefined ? v : '';
+    }
+    const rec = this.findAnswer(questionId);
+    return (rec !== null && rec.studentAnswer !== null) ? rec.studentAnswer : '';
   }
 
   private async selectOption(q: QuestionContent, opt: string): Promise<void> {
-    let current = '';
-    const rec = this.findAnswer(q.id);
-    if (rec !== null && rec.studentAnswer !== null) {
-      current = rec.studentAnswer;
-    }
+    const current = this.currentAnswer(q.id);
 
     let newAnswer: string;
     if (q.questionType === 1) {
-      // multiple choice: toggle
-      if (current.indexOf(opt) >= 0) {
-        newAnswer = current.replace(opt, '');
+      // 多选：维护一个排序后的选项集合，逗号拼接（对照前端 answerArr.sort().toString()）
+      const parts: string[] = current.length > 0
+        ? current.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0)
+        : [];
+      const idx = parts.indexOf(opt);
+      if (idx >= 0) {
+        parts.splice(idx, 1);
       } else {
-        newAnswer = current + opt;
+        parts.push(opt);
       }
-      // sort
-      const sorted = newAnswer.split('').sort().join('');
-      newAnswer = sorted;
+      parts.sort();
+      newAnswer = parts.join(',');
     } else {
-      // single choice
+      // 单选/判断：直接取该选项
       newAnswer = opt;
     }
 
+    // 1) 乐观更新：先写覆盖层，UI 立刻高亮（不依赖后端往返）
+    this.pendingAnswers.set(q.id, newAnswer);
+    this.pendingAnswers = new Map<number, string>(this.pendingAnswers);
+
+    // 2) 保存：body 必带 resubmitTag/abandonTag，否则后端 10000「请求参数错误！」
+    //    resubmitTag = mappingStatus===1 ? 1 : 0（编辑批阅/补交阶段答案）
+    const resubmitTag = (this.entityInfo !== null && this.entityInfo.mappingStatus === 1) ? 1 : 0;
+    const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
     try {
-      const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
-      const updated = await api.saveAnswer(this.entityId, q.id, newAnswer);
-      // update local answers array
-      let found = false;
-      for (let i = 0; i < this.answers.length; i++) {
-        if (this.answers[i].questionId === q.id) {
-          this.answers[i] = updated;
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        this.answers.push(updated);
-      }
-      // force re-render
-      this.answers = [...this.answers];
+      await api.saveAnswer(this.entityId, q.id, newAnswer, resubmitTag);
     } catch (e) {
       const err = e as Error;
       hilog.error(DOMAIN, TAG, 'saveAnswer failed: %{public}s', err.message);
     }
+    // 3) 重拉服务端真值（含判分），再清除覆盖层——成功则高亮保留，失败则回退
+    try {
+      this.answers = await api.answers(this.entityId);
+    } catch (e) {
+      const err = e as Error;
+      hilog.warn(DOMAIN, TAG, 'reload answers failed: %{public}s', err.message);
+    }
+    this.pendingAnswers.delete(q.id);
+    this.pendingAnswers = new Map<number, string>(this.pendingAnswers);
   }
 
   @Builder
@@ -807,10 +868,10 @@ export struct CourseDetailPage {
             }
             this.statisticsCard()
 
-            // Submit bar
-            if (!this.submitted) {
+            // 提交/补交栏：未提交(mappingStatus 0)显「提交」+倒计时；已提交(1)显「补交」(可多次)
+            if (this.hasQuestions) {
               Row({ space: 12 }) {
-                if (this.countdownSec > 0) {
+                if (!this.submitted && this.countdownSec > 0) {
                   Text(`剩余 ${this.formatCountdown(this.countdownSec)}`)
                     .fontSize(Theme.F_SUB)
                     .fontColor(this.countdownSec < 300 ? Theme.DANGER : Theme.TEXT_2)
@@ -819,7 +880,11 @@ export struct CourseDetailPage {
                 SquishButton({
                   onTap: () => {
                     if (!this.submitting) {
-                      this.canResubmit ? this.doResubmit() : this.doSubmit();
+                      if (this.submitted) {
+                        this.doResubmit();
+                      } else {
+                        this.doSubmit();
+                      }
                     }
                   }
                 }) {
@@ -828,13 +893,13 @@ export struct CourseDetailPage {
                       LoadingProgress().width(18).height(18).color(Color.White)
                     }
                     Text(this.submitting ? '提交中...'
-                      : (this.canResubmit ? '补 交' : '提 交'))
+                      : (this.submitted ? '补 交' : '提 交'))
                       .fontSize(Theme.F_BODY)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(Color.White)
                   }
                   .padding({ left: 24, right: 24, top: 8, bottom: 8 })
-                  .backgroundColor(this.canResubmit ? Theme.WARN : Theme.PRIMARY)
+                  .backgroundColor(this.submitted ? Theme.WARN : Theme.PRIMARY)
                   .borderRadius(Theme.R_XL)
                 }
               }

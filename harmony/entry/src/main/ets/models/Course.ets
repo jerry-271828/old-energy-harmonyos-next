@@ -26,6 +26,13 @@ export interface CourseListItem {
   updateTime: string;
 }
 
+// 进入课件/试卷详情页的导航参数。
+// createTime 来自列表项，补交(resubmit)时作为 courseBeginTime 必带字段透传。
+export interface CourseDetailParam {
+  id: number;
+  createTime: string;
+}
+
 // entity/{id}：学生与这份课件的关联信息（用时/得分率/提交窗口）
 export interface CourseEntityInfo {
   id: number;
