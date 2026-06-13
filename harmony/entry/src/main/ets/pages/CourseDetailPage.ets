@@ -740,7 +740,7 @@ export struct CourseDetailPage {
               }
             }) {
               Row({ space: 6 }) {
-                SymbolGlyph($r('sys.symbol.pencil'))
+                SymbolGlyph($r('sys.symbol.card_writer'))
                   .fontSize(18)
                   .fontColor([Theme.WARN])
                 Text('手写作答')
@@ -1004,7 +1004,7 @@ export struct CourseDetailPage {
                       if (this.submitting) {
                         LoadingProgress().width(14).height(14).color(Color.White)
                       } else {
-                        SymbolGlyph($r('sys.symbol.paperplane'))
+                        SymbolGlyph($r('sys.symbol.share'))
                           .fontSize(16)
                           .fontColor([Color.White])
                       }
@@ -1026,7 +1026,7 @@ export struct CourseDetailPage {
                   }
                 }) {
                   Row({ space: 6 }) {
-                    SymbolGlyph($r('sys.symbol.pencil'))
+                    SymbolGlyph($r('sys.symbol.card_writer'))
                       .fontSize(16)
                       .fontColor([Theme.TEXT])
                     Text('批注')
