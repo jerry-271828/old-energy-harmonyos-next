@@ -192,13 +192,13 @@ export struct HandwritePanel {
   toolBar() {
     Row({ space: 10 }) {
       // Pen / Eraser
-      SymbolGlyph($r('sys.symbol.pencil'))
+      SymbolGlyph($r('sys.symbol.card_writer'))
         .fontSize(22)
         .fontColor([this.tool === 'pen' ? Theme.PRIMARY : Theme.TEXT_2])
         .onClick(() => {
           this.tool = 'pen';
         })
-      SymbolGlyph($r('sys.symbol.eraser'))
+      SymbolGlyph($r('sys.symbol.xmark'))
         .fontSize(22)
         .fontColor([this.tool === 'eraser' ? Theme.PRIMARY : Theme.TEXT_2])
         .onClick(() => {
@@ -228,7 +228,7 @@ export struct HandwritePanel {
 
       Divider().vertical(true).height(22).color(Theme.DIVIDER)
 
-      SymbolGlyph($r('sys.symbol.arrow_uturn_backward'))
+      SymbolGlyph($r('sys.symbol.repeat_1'))
         .fontSize(22)
         .fontColor([this.lines.length > 0 ? Theme.TEXT_2 : Theme.TEXT_3])
         .onClick(() => {
