@@ -13,15 +13,22 @@ export type StudyKind = 'course' | 'paper';
 interface SubmitCourseReq {
   courseId?: number;
   paperId?: number;
+  // 补交（resubmit）必带：对照 Vue submitCourseAgainData → vn({courseId, courseBeginTime})
+  // courseBeginTime 取自列表项 CourseListItem.createTime（≠ entityInfo.courseBeginTime）
+  courseBeginTime?: string;
+  paperBeginTime?: string;
 }
 
 // 单题保存请求体：POST /api/student/{kind}/entity/{courseId}/question/{questionId}
-// body 即本对象（对照 Vue: aP("POST", e) + url 用 e.courseId/e.questionId）
+// body 对照 Vue stuAnaswer：EP({courseId, questionId, studentAnswer, resubmitTag, abandonTag})
+// resubmitTag/abandonTag 为后端必填——缺失会被判 code 10000「请求参数错误！」（已用真机后端实测确认）
 export interface SaveAnswerBody {
   courseId?: number;
   paperId?: number;
   questionId: number;
   studentAnswer: string | null;
+  resubmitTag: number;   // 编辑已批阅/补交阶段(mappingStatus===1)的答案时为 1，否则 0
+  abandonTag: number;    // 正常作答恒为 0（1 = 放弃作答看答案）
 }
 
 export class StudyApi {
@@ -95,15 +102,21 @@ export class StudyApi {
   // ---- 作答 ----
 
   // 保存单题（选择题点选即存；isDraft 语义由 draft 接口承担）
+  // 返回值：后端成功时 extra 为 boolean(true)，并非作答记录——保存后必须重新拉 answers() 取最新状态。
   async saveAnswer(entityId: number, questionId: number,
-    studentAnswer: string | null): Promise<AnswerRecord> {
-    const body: SaveAnswerBody = { questionId: questionId, studentAnswer: studentAnswer };
+    studentAnswer: string | null, resubmitTag: number): Promise<void> {
+    const body: SaveAnswerBody = {
+      questionId: questionId,
+      studentAnswer: studentAnswer,
+      resubmitTag: resubmitTag,
+      abandonTag: 0
+    };
     if (this.kind === 'course') {
       body.courseId = entityId;
     } else {
       body.paperId = entityId;
     }
-    return ApiClient.post<AnswerRecord>(
+    await ApiClient.post<boolean>(
       `/api/student/${this.kind}/entity/${entityId}/question/${questionId}`, body);
   }
 
@@ -118,13 +131,15 @@ export class StudyApi {
     await ApiClient.post<object>(`/api/student/${this.kind}/entity/${entityId}/submit`, body);
   }
 
-  // 补交
-  async resubmit(entityId: number): Promise<void> {
+  // 补交（对照 Vue vn：body 必带 courseBeginTime = 列表项 createTime）
+  async resubmit(entityId: number, beginTime: string): Promise<void> {
     const body: SubmitCourseReq = {};
     if (this.kind === 'course') {
       body.courseId = entityId;
+      body.courseBeginTime = beginTime;
     } else {
       body.paperId = entityId;
+      body.paperBeginTime = beginTime;
     }
     await ApiClient.post<object>(`/api/student/${this.kind}/entity/${entityId}/resubmit`, body);
   }

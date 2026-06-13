@@ -8,7 +8,7 @@ import { GlassCard, EmptyView, LoadingView, RedDot } from '../components/glass/G
 import { Nav } from '../utils/Nav';
 import { TeacherEntity } from '../models/User';
 import { CatalogNode, PaperReddotSets } from '../models/Catalog';
-import { CourseListItem } from '../models/Course';
+import { CourseListItem, CourseDetailParam } from '../models/Course';
 import { UserApi } from '../net/api/UserApi';
 import { StudyApi } from '../net/api/StudyApi';
 import { ReddotApi } from '../net/api/ReddotApi';
@@ -107,7 +107,8 @@ export struct ExamPage {
   }
 
   private openPaperDetail(item: CourseListItem): void {
-    Nav.push('courseDetail', item.id);
+    const param: CourseDetailParam = { id: item.id, createTime: item.createTime };
+    Nav.push('courseDetail', param);
   }
 
   @Builder
