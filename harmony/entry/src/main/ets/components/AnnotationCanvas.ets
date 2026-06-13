@@ -121,13 +121,13 @@ export struct AnnotationCanvas {
       GlassCardOverlay() {
         Row({ space: 8 }) {
           // Tool selection
-          SymbolGlyph($r('sys.symbol.pencil'))
+          SymbolGlyph($r('sys.symbol.card_writer'))
             .fontSize(20)
             .fontColor([this.tool === 'pen' ? Theme.PRIMARY : Theme.TEXT_2])
             .onClick(() => {
               this.tool = 'pen';
             })
-          SymbolGlyph($r('sys.symbol.eraser'))
+          SymbolGlyph($r('sys.symbol.xmark'))
             .fontSize(20)
             .fontColor([this.tool === 'eraser' ? Theme.PRIMARY : Theme.TEXT_2])
             .onClick(() => {
@@ -163,7 +163,7 @@ export struct AnnotationCanvas {
           Divider().vertical(true).height(20).color(Theme.DIVIDER)
 
           // Undo / Clear
-          SymbolGlyph($r('sys.symbol.arrow_uturn_backward'))
+          SymbolGlyph($r('sys.symbol.repeat_1'))
             .fontSize(20)
             .fontColor([Theme.TEXT_2])
             .onClick(() => {
