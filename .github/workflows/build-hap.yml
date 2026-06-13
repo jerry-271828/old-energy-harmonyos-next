@@ -12,6 +12,10 @@ env:
   CLT_BASE_URL: https://github.com/jerry-271828/harmonyos-commandline-tools/releases/download/v26.0.0.461
   CLT_SHA256: b046da0a1a06fe13b3d82d198738abc54788d79c6c9d07c36617ec7fc31a3b3b
 
+# gh release create/delete 需要写 contents（创建 tag 与 Release）
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -73,3 +77,34 @@ jobs:
           name: betterxny-hap
           path: harmony/entry/build/default/outputs/**/*.hap
           if-no-files-found: error
+
+      # 滚动发布：固定 tag=nightly 的预发布 Release，每次 main 构建覆盖。
+      # 先删旧 Release（连 tag 一起），再在当前 commit 重建，使 nightly tag 始终指向最新提交。
+      - name: Publish HAP to nightly release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          haps=(harmony/entry/build/default/outputs/**/*.hap)
+          if [ ${#haps[@]} -eq 0 ]; then echo "no .hap found"; exit 1; fi
+
+          ver=$(grep -oP '"versionName"\s*:\s*"\K[^"]+' harmony/AppScope/app.json5)
+          sha7=${GITHUB_SHA::7}
+
+          # 给产物起带版本/commit 的可读名字（原文件名形如 entry-default-unsigned.hap）
+          assets=()
+          for h in "${haps[@]}"; do
+            dst="$RUNNER_TEMP/$(basename "$h" .hap)-${ver}-${sha7}.hap"
+            cp "$h" "$dst"
+            assets+=("$dst")
+          done
+
+          gh release delete nightly --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create nightly "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Nightly ${ver} (${sha7})" \
+            --prerelease \
+            --notes "自动构建的**未签名** HAP（versionName ${ver}，commit \`${sha7}\`）。装机需本地签名或在 DevEco 中重新签名。"
