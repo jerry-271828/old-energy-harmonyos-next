@@ -19,6 +19,8 @@ import { ApiClient } from '../net/ApiClient';
 import { PhotoUploader } from '../utils/PhotoUploader';
 import { QuickSubmitStore } from '../store/QuickSubmitStore';
 import { Downloader } from '../utils/Downloader';
+import { AttachmentViewerParam } from './AttachmentViewerPage';
+import { HandwritePanel } from '../components/HandwritePanel';
 
 const DOMAIN = 0x0002;
 const TAG = 'CourseDetailPage';
@@ -50,9 +52,16 @@ export struct CourseDetailPage {
   @Local private hasQuestions: boolean = false;     // 内容里是否含题目块（无题不显示提交栏，对照前端 questionCounts>0）
   @Local private countdownSec: number = 0;
   @Local private uploadingQuestionId: number = 0;
+  @Local private capturingQuestionId: number = 0;  // 拍照上传中
+  @Local private showAnnotation: boolean = false;
+  @Local private handwriteQuestionId: number = 0;  // >0 时显示手写作答面板
+  @Local private handwriteStem: string = '';
   // 点选乐观更新覆盖层：qid → studentAnswer。点击即写，给即时高亮反馈；
   // 保存成功/失败后重拉 answers() 再清除对应项，回到服务端真值（含判分）。
   @Local private pendingAnswers: Map<number, string> = new Map<number, string>();
+  // 附件明文 URL 映射：content 接口的 attachmentLinkAddress 是 DES 加密串（不可用），
+  // statistics 接口的 studentCourseAttachments 才是明文路径——用 id 做 key 反查。
+  private attUrlMap: Map<number, string> = new Map<number, string>();
 
   private createTime: string = '';   // 列表项 createTime，补交时作为 courseBeginTime
 
@@ -156,6 +165,16 @@ export struct CourseDetailPage {
   private async loadStatistics(api: StudyApi): Promise<void> {
     try {
       this.statistics = await api.statistics(this.entityId);
+      // 从 statistics 里的明文 attachmentLinkAddress 建 id→url 映射
+      if (this.statistics !== null && this.statistics.studentCourseAttachments !== null) {
+        const atts = this.statistics.studentCourseAttachments;
+        for (let i = 0; i < atts.length; i++) {
+          const a = atts[i];
+          if (a.attachmentLinkAddress.length > 0) {
+            this.attUrlMap.set(a.id, a.attachmentLinkAddress);
+          }
+        }
+      }
     } catch (e) {
       // non-critical
     }
@@ -348,7 +367,9 @@ export struct CourseDetailPage {
               top: 6, bottom: 6
             })
             .onClick(() => {
-              this.scroller.scrollToIndex(a.index);
+              // 偏移量：statistics card + submit bar 在 List 顶部占了额外 ListItem
+              const offset = (this.statistics !== null ? 1 : 0) + (this.hasQuestions ? 1 : 0);
+              this.scroller.scrollToIndex(a.index + offset);
               this.showTitleNav = false;
             })
         }, (a: TitleAnchor, idx: number) => `anchor_${idx}`)
@@ -399,14 +420,9 @@ export struct CourseDetailPage {
         .layoutWeight(1)
         .alignItems(HorizontalAlign.Start)
 
-        if (this.settings.forceShowPDFButtons && att.attachmentExtraName === '.pdf') {
-          SymbolGlyph($r('sys.symbol.arrow_down_circle'))
-            .fontSize(24)
-            .fontColor([Theme.PRIMARY])
-            .onClick(() => {
-              this.downloadAttachment(att);
-            })
-        }
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(18)
+          .fontColor([Theme.TEXT_3])
       }
       .width('100%')
       .alignItems(VerticalAlign.Center)
@@ -414,12 +430,38 @@ export struct CourseDetailPage {
     }
     .width('100%')
     .margin({ left: 16, right: 16, top: 4, bottom: 4 })
+    .onClick(() => {
+      this.openAttachment(att);
+    })
+  }
+
+  private resolveAttUrl(att: AttachmentEntity): string {
+    const plain = this.attUrlMap.get(att.id);
+    if (plain !== undefined && plain.length > 0) {
+      return plain;
+    }
+    // statistics 尚未加载完或无此附件——回退 content 的原始值（可能是加密串）
+    return att.attachmentLinkAddress;
+  }
+
+  private openAttachment(att: AttachmentEntity): void {
+    const url = this.resolveAttUrl(att);
+    if (url.length === 0) {
+      return;
+    }
+    const param: AttachmentViewerParam = {
+      name: att.attachmentName,
+      url: url,
+      ext: att.attachmentExtraName
+    };
+    Nav.push('attachmentViewer', param as object);
   }
 
   private async downloadAttachment(att: AttachmentEntity): Promise<void> {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const ok = await Downloader.download(ctx, att.attachmentLinkAddress, att.attachmentName);
+      const url = this.resolveAttUrl(att);
+      const ok = await Downloader.download(ctx, url, att.attachmentName);
       hilog.info(DOMAIN, TAG, 'download %{public}s: %{public}s',
         att.attachmentName, ok ? 'ok' : 'failed');
     } catch (e) {
@@ -548,14 +590,13 @@ export struct CourseDetailPage {
           Row({ space: 10 }) {
             Text(opt.trim())
               .fontSize(Theme.F_BODY)
-              .fontColor(this.isOptionSelected(q, opt.trim()) ? Color.White : Theme.TEXT)
+              .fontColor(this.optionTextColor(this.getOptionState(q, opt.trim())))
               .fontWeight(FontWeight.Medium)
               .width(32)
               .height(32)
               .textAlign(TextAlign.Center)
               .borderRadius(16)
-              .backgroundColor(this.isOptionSelected(q, opt.trim())
-                ? Theme.PRIMARY : '#F0F2F5')
+              .backgroundColor(this.optionBgColor(this.getOptionState(q, opt.trim())))
           }
           .width('100%')
           .padding({ top: 4, bottom: 4 })
@@ -666,28 +707,48 @@ export struct CourseDetailPage {
             .borderRadius(Theme.R_SM)
         }
 
-        // Photo upload button (for non-submitted questions with photo answer)
-        if (!this.submitted && (q.answerWayPhoto > 0 || q.answerWayHandle > 0)) {
+        if (q.answerWayPhoto > 0 || q.answerWayHandle > 0) {
           Row({ space: 8 }) {
+            // 拍照上传：调用系统相机
             SquishButton({
               onTap: () => {
-                this.uploadPhoto(q.id);
+                this.capturePhoto(q.id);
               }
             }) {
               Row({ space: 6 }) {
-                if (this.uploadingQuestionId === q.id) {
+                if (this.capturingQuestionId === q.id) {
                   LoadingProgress().width(16).height(16).color(Theme.PRIMARY)
                 } else {
                   SymbolGlyph($r('sys.symbol.camera'))
                     .fontSize(18)
                     .fontColor([Theme.PRIMARY])
                 }
-                Text(this.uploadingQuestionId === q.id ? '上传中...' : '拍照作答')
+                Text(this.capturingQuestionId === q.id ? '上传中...' : '拍照上传')
                   .fontSize(Theme.F_SUB)
                   .fontColor(Theme.PRIMARY)
               }
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })
               .backgroundColor(Theme.PRIMARY_SOFT)
+              .borderRadius(Theme.R_XL)
+            }
+
+            // 手写作答：打开画布
+            SquishButton({
+              onTap: () => {
+                this.handwriteQuestionId = q.id;
+                this.handwriteStem = q.questionStem;
+              }
+            }) {
+              Row({ space: 6 }) {
+                SymbolGlyph($r('sys.symbol.pencil'))
+                  .fontSize(18)
+                  .fontColor([Theme.WARN])
+                Text('手写作答')
+                  .fontSize(Theme.F_SUB)
+                  .fontColor(Theme.WARN)
+              }
+              .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+              .backgroundColor('#1AFAAD14')
               .borderRadius(Theme.R_XL)
             }
           }
@@ -725,7 +786,6 @@ export struct CourseDetailPage {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const result = await PhotoUploader.pickAndUpload(ctx, this.entityId, questionId, this.kind);
       if (result !== null) {
-        // reload answers to reflect the new attachment
         const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
         this.answers = await api.answers(this.entityId);
       }
@@ -735,6 +795,75 @@ export struct CourseDetailPage {
     } finally {
       this.uploadingQuestionId = 0;
     }
+  }
+
+  private async capturePhoto(questionId: number): Promise<void> {
+    if (this.capturingQuestionId > 0) {
+      return;
+    }
+    this.capturingQuestionId = questionId;
+    try {
+      const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
+      const result = await PhotoUploader.captureAndUpload(ctx, this.entityId, questionId, this.kind);
+      if (result !== null) {
+        const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
+        this.answers = await api.answers(this.entityId);
+      }
+    } catch (e) {
+      const err = e as Error;
+      hilog.error(DOMAIN, TAG, 'capturePhoto failed: %{public}s', err.message);
+    } finally {
+      this.capturingQuestionId = 0;
+    }
+  }
+
+  // 选项状态：提交后按正确答案着色
+  // 返回: 'default' | 'selected' | 'correct' | 'wrong'
+  private getOptionState(q: QuestionContent, opt: string): string {
+    const selected = this.isOptionSelected(q, opt);
+    if (!this.submitted) {
+      return selected ? 'selected' : 'default';
+    }
+    const rec = this.findAnswer(q.id);
+    if (rec === null || rec.judgeTag === null || rec.judgeTag < 0) {
+      return selected ? 'selected' : 'default';
+    }
+    const correctRaw = q.answer ?? '';
+    const correctParts = correctRaw.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+    let isCorrectOpt = false;
+    for (let i = 0; i < correctParts.length; i++) {
+      if (correctParts[i] === opt) {
+        isCorrectOpt = true;
+        break;
+      }
+    }
+    if (isCorrectOpt) {
+      return 'correct';
+    }
+    if (selected && !isCorrectOpt) {
+      return 'wrong';
+    }
+    return 'default';
+  }
+
+  private optionBgColor(state: string): ResourceColor {
+    if (state === 'correct') {
+      return Theme.SUCCESS;
+    }
+    if (state === 'wrong') {
+      return Theme.DANGER;
+    }
+    if (state === 'selected') {
+      return Theme.PRIMARY;
+    }
+    return '#F0F2F5';
+  }
+
+  private optionTextColor(state: string): ResourceColor {
+    if (state === 'default') {
+      return Theme.TEXT;
+    }
+    return Color.White;
   }
 
   private getAnswerAttachments(questionId: number): AttachmentEntity[] {
@@ -834,109 +963,232 @@ export struct CourseDetailPage {
 
   build() {
     NavDestination() {
-      Column() {
-        // Back button + title
-        Row({ space: 12 }) {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(24)
-            .fontColor([Theme.TEXT])
-            .onClick(() => {
-              Nav.pop();
-            })
-          Text('课件详情')
-            .fontSize(Theme.F_TITLE)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Theme.TEXT)
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .height(50)
-        .padding({ left: 16, right: 16, top: this.ui.topSafeVp })
-        .alignItems(VerticalAlign.Center)
-
-        if (this.loading) {
-          LoadingView()
-            .layoutWeight(1)
-        } else if (this.error.length > 0) {
-          EmptyView({ text: this.error })
-            .layoutWeight(1)
-        } else {
+      Stack() {
+        Column() {
+          // 标题栏：沉浸光感材质
           Column() {
-            this.toolbarBuilder()
-            if (this.showTitleNav) {
-              this.titleNavPanel()
+            Row({ space: 12 }) {
+              SymbolGlyph($r('sys.symbol.chevron_left'))
+                .fontSize(24)
+                .fontColor([Theme.TEXT])
+                .onClick(() => {
+                  Nav.pop();
+                })
+              Text('课件详情')
+                .fontSize(Theme.F_TITLE)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Theme.TEXT)
+                .layoutWeight(1)
             }
-            this.statisticsCard()
+            .width('100%')
+            .height(50)
+            .padding({ left: 16, right: 16, top: this.ui.topSafeVp })
+            .alignItems(VerticalAlign.Center)
 
-            // 提交/补交栏：未提交(mappingStatus 0)显「提交」+倒计时；已提交(1)显「补交」(可多次)
-            if (this.hasQuestions) {
-              Row({ space: 12 }) {
-                if (!this.submitted && this.countdownSec > 0) {
-                  Text(`剩余 ${this.formatCountdown(this.countdownSec)}`)
-                    .fontSize(Theme.F_SUB)
-                    .fontColor(this.countdownSec < 300 ? Theme.DANGER : Theme.TEXT_2)
-                }
-                Blank().layoutWeight(1)
-                SquishButton({
-                  onTap: () => {
-                    if (!this.submitting) {
-                      if (this.submitted) {
-                        this.doResubmit();
-                      } else {
-                        this.doSubmit();
+            // 快捷操作栏
+            if (!this.loading && this.error.length === 0) {
+              Row({ space: 10 }) {
+                if (this.hasQuestions) {
+                  SquishButton({
+                    onTap: () => {
+                      if (!this.submitting) {
+                        if (this.submitted) {
+                          this.doResubmit();
+                        } else {
+                          this.doSubmit();
+                        }
                       }
                     }
+                  }) {
+                    Row({ space: 6 }) {
+                      if (this.submitting) {
+                        LoadingProgress().width(14).height(14).color(Color.White)
+                      } else {
+                        SymbolGlyph($r('sys.symbol.paperplane'))
+                          .fontSize(16)
+                          .fontColor([Color.White])
+                      }
+                      Text(this.submitting ? '提交中...'
+                        : (this.submitted ? '快捷补交' : '快捷提交'))
+                        .fontSize(Theme.F_SUB)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Color.White)
+                    }
+                    .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                    .backgroundColor(this.submitted ? Theme.WARN : Theme.PRIMARY)
+                    .borderRadius(Theme.R_XL)
+                  }
+                }
+
+                SquishButton({
+                  onTap: () => {
+                    this.showAnnotation = true;
                   }
                 }) {
                   Row({ space: 6 }) {
-                    if (this.submitting) {
-                      LoadingProgress().width(18).height(18).color(Color.White)
-                    }
-                    Text(this.submitting ? '提交中...'
-                      : (this.submitted ? '补 交' : '提 交'))
-                      .fontSize(Theme.F_BODY)
+                    SymbolGlyph($r('sys.symbol.pencil'))
+                      .fontSize(16)
+                      .fontColor([Theme.TEXT])
+                    Text('批注')
+                      .fontSize(Theme.F_SUB)
                       .fontWeight(FontWeight.Medium)
-                      .fontColor(Color.White)
+                      .fontColor(Theme.TEXT)
                   }
-                  .padding({ left: 24, right: 24, top: 8, bottom: 8 })
-                  .backgroundColor(this.submitted ? Theme.WARN : Theme.PRIMARY)
+                  .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+                  .backgroundColor('#F0F2F5')
                   .borderRadius(Theme.R_XL)
+                }
+
+                Blank().layoutWeight(1)
+
+                if (!this.submitted && this.countdownSec > 0) {
+                  Text(`${this.formatCountdown(this.countdownSec)}`)
+                    .fontSize(Theme.F_SUB)
+                    .fontColor(this.countdownSec < 300 ? Theme.DANGER : Theme.TEXT_2)
                 }
               }
               .width('100%')
-              .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+              .padding({ left: 16, right: 16, bottom: 8 })
             }
+          }
+          .width('100%')
+          .backgroundColor('#E8FAF6EC')
+          .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
+          .border({ width: { bottom: 1 }, color: '#14000000' })
 
-            // Content blocks
-            List({ scroller: this.scroller, space: 4 }) {
-              ForEach(this.blocks, (block: CourseBlock, idx: number) => {
-                ListItem() {
-                  if (block.contentType === 0 && block.text !== null) {
-                    this.textBlock(block)
-                  } else if (block.contentType === 1 && block.attachment !== null) {
-                    this.attachmentBlock(block.attachment)
-                  } else if (block.contentType === 2 && block.question !== null) {
-                    this.questionBlock(block.question, idx)
+          if (this.loading) {
+            LoadingView()
+              .layoutWeight(1)
+          } else if (this.error.length > 0) {
+            EmptyView({ text: this.error })
+              .layoutWeight(1)
+          } else {
+            Column() {
+              this.toolbarBuilder()
+              if (this.showTitleNav) {
+                this.titleNavPanel()
+              }
+
+              List({ scroller: this.scroller, space: 4 }) {
+                // 统计概览：随内容自然滚动
+                if (this.statistics !== null) {
+                  ListItem() {
+                    this.statisticsCard()
                   }
                 }
-              }, (block: CourseBlock, idx: number) => `block_${idx}`)
+
+                // 提交/补交栏
+                if (this.hasQuestions) {
+                  ListItem() {
+                    Row({ space: 12 }) {
+                      if (!this.submitted && this.countdownSec > 0) {
+                        Text(`剩余 ${this.formatCountdown(this.countdownSec)}`)
+                          .fontSize(Theme.F_SUB)
+                          .fontColor(this.countdownSec < 300 ? Theme.DANGER : Theme.TEXT_2)
+                      }
+                      Blank().layoutWeight(1)
+                      SquishButton({
+                        onTap: () => {
+                          if (!this.submitting) {
+                            if (this.submitted) {
+                              this.doResubmit();
+                            } else {
+                              this.doSubmit();
+                            }
+                          }
+                        }
+                      }) {
+                        Row({ space: 6 }) {
+                          if (this.submitting) {
+                            LoadingProgress().width(18).height(18).color(Color.White)
+                          }
+                          Text(this.submitting ? '提交中...'
+                            : (this.submitted ? '补 交' : '提 交'))
+                            .fontSize(Theme.F_BODY)
+                            .fontWeight(FontWeight.Medium)
+                            .fontColor(Color.White)
+                        }
+                        .padding({ left: 24, right: 24, top: 8, bottom: 8 })
+                        .backgroundColor(this.submitted ? Theme.WARN : Theme.PRIMARY)
+                        .borderRadius(Theme.R_XL)
+                      }
+                    }
+                    .width('100%')
+                    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
+                  }
+                }
+
+                // 内容块
+                ForEach(this.blocks, (block: CourseBlock, idx: number) => {
+                  ListItem() {
+                    if (block.contentType === 0 && block.text !== null) {
+                      this.textBlock(block)
+                    } else if (block.contentType === 1 && block.attachment !== null) {
+                      this.attachmentBlock(block.attachment)
+                    } else if (block.contentType === 2 && block.question !== null) {
+                      this.questionBlock(block.question, idx)
+                    }
+                  }
+                }, (block: CourseBlock, idx: number) => `block_${idx}`)
+              }
+              .width('100%')
+              .layoutWeight(1)
+              .scrollBar(BarState.Off)
+              .edgeEffect(EdgeEffect.Spring)
+              .padding({ bottom: 80 })
             }
             .width('100%')
             .layoutWeight(1)
-            .scrollBar(BarState.Off)
-            .edgeEffect(EdgeEffect.Spring)
-            .padding({ bottom: 80 })
           }
-          .width('100%')
-          .layoutWeight(1)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor(Theme.BG_CREAM)
+
+        // 批注覆盖层
+        if (this.showAnnotation) {
+          HandwritePanel({
+            mode: 'annotation',
+            onClose: () => {
+              this.showAnnotation = false;
+            }
+          })
+        }
+
+        // 手写作答覆盖层
+        if (this.handwriteQuestionId > 0) {
+          HandwritePanel({
+            mode: 'answer',
+            questionStem: this.handwriteStem,
+            entityId: this.entityId,
+            questionId: this.handwriteQuestionId,
+            kind: this.kind,
+            onClose: () => {
+              this.handwriteQuestionId = 0;
+              this.handwriteStem = '';
+            },
+            onSubmitted: () => {
+              const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
+              api.answers(this.entityId).then((ans: AnswerRecord[]) => {
+                this.answers = ans;
+              });
+            }
+          })
         }
       }
       .width('100%')
       .height('100%')
-      .backgroundColor(Theme.BG_CREAM)
     }
     .hideTitleBar(true)
     .onBackPressed(() => {
+      if (this.showAnnotation) {
+        this.showAnnotation = false;
+        return true;
+      }
+      if (this.handwriteQuestionId > 0) {
+        this.handwriteQuestionId = 0;
+        return true;
+      }
       Nav.pop();
       return true;
     })
