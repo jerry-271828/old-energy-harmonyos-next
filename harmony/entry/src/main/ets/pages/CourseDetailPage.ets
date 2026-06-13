@@ -56,11 +56,11 @@ export struct CourseDetailPage {
 
   aboutToAppear(): void {
     // param is courseId (number)
-    const param = Nav.stack.getParamByName('courseDetail');
+    const param = Nav.stack.getParamByName('courseDetail') as Object[];
     if (param.length > 0) {
-      const raw = param[param.length - 1];
+      const raw: Object = param[param.length - 1];
       if (typeof raw === 'number') {
-        this.entityId = raw;
+        this.entityId = raw as number;
       } else if (typeof raw === 'string') {
         this.entityId = parseInt(raw as string) || 0;
       }
@@ -233,7 +233,7 @@ export struct CourseDetailPage {
   }
 
   @Builder
-  toolbar() {
+  toolbarBuilder() {
     Row({ space: 12 }) {
       // Title navigation toggle
       if (this.titleAnchors.length > 0) {
@@ -283,6 +283,7 @@ export struct CourseDetailPage {
 
   @Builder
   titleNavPanel() {
+    Column() {
     GlassCard({ innerPadding: 12 }) {
       Column({ space: 2 }) {
         Text('标题跳转')
@@ -311,6 +312,7 @@ export struct CourseDetailPage {
       }
       .width('100%')
     }
+    }
     .width('100%')
     .margin({ left: 16, right: 16, bottom: 8 })
   }
@@ -325,6 +327,7 @@ export struct CourseDetailPage {
 
   @Builder
   attachmentBlock(att: AttachmentEntity) {
+    Column() {
     GlassCard({ innerPadding: 14 }) {
       Row({ space: 12 }) {
         SymbolGlyph(this.attachmentIcon(att))
@@ -365,11 +368,12 @@ export struct CourseDetailPage {
       .width('100%')
       .alignItems(VerticalAlign.Center)
     }
+    }
     .width('100%')
     .margin({ left: 16, right: 16, top: 4, bottom: 4 })
   }
 
-  private async downloadAttachment(att: AttachmentEntity): void {
+  private async downloadAttachment(att: AttachmentEntity): Promise<void> {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
       const ok = await Downloader.download(ctx, att.attachmentLinkAddress, att.attachmentName);
@@ -384,19 +388,20 @@ export struct CourseDetailPage {
   private attachmentIcon(att: AttachmentEntity): Resource {
     const ext = att.attachmentExtraName.toLowerCase();
     if (ext === '.pdf') {
-      return $r('sys.symbol.doc_richtext');
+      return $r('sys.symbol.doc_plaintext');
     }
     if (ext === '.mp4' || ext === '.mov' || ext === '.avi') {
-      return $r('sys.symbol.play_rectangle');
+      return $r('sys.symbol.play_circle');
     }
     if (ext === '.png' || ext === '.jpg' || ext === '.jpeg' || ext === '.gif') {
-      return $r('sys.symbol.photo');
+      return $r('sys.symbol.picture');
     }
     return $r('sys.symbol.paperclip');
   }
 
   @Builder
   questionBlock(q: QuestionContent, blockIdx: number) {
+    Column() {
     GlassCard({ innerPadding: 16 }) {
       Column({ space: 10 }) {
         // Question header: number + score + type
@@ -486,6 +491,7 @@ export struct CourseDetailPage {
         }
       }
       .width('100%')
+    }
     }
     .width('100%')
     .margin({ left: 16, right: 16, top: 4, bottom: 4 })
@@ -721,6 +727,7 @@ export struct CourseDetailPage {
   @Builder
   statisticsCard() {
     if (this.statistics !== null) {
+      Column() {
       GlassCard({ innerPadding: 16 }) {
         Column({ space: 10 }) {
           Text('统计概览')
@@ -743,6 +750,7 @@ export struct CourseDetailPage {
           }
         }
         .width('100%')
+      }
       }
       .width('100%')
       .margin({ left: 16, right: 16, top: 8, bottom: 8 })
@@ -793,7 +801,7 @@ export struct CourseDetailPage {
             .layoutWeight(1)
         } else {
           Column() {
-            this.toolbar()
+            this.toolbarBuilder()
             if (this.showTitleNav) {
               this.titleNavPanel()
             }

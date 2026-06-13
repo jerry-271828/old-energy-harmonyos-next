@@ -80,11 +80,11 @@ export struct SquishButton {
 @ComponentV2
 export struct RedDot {
   @Param show: boolean = false;
-  @Param size: number = 8;
+  @Param dotSize: number = 8;
 
   build() {
     if (this.show) {
-      Circle({ width: this.size, height: this.size })
+      Circle({ width: this.dotSize, height: this.dotSize })
         .fill(Theme.RED_DOT)
         .shadow({ radius: 4, color: '#66FF4D4F' })
     }

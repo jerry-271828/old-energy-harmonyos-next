@@ -88,7 +88,7 @@ struct Index {
           .onClick(() => {
             Nav.push('search', null);
           })
-        SymbolGlyph($r('sys.symbol.hammer'))
+        SymbolGlyph($r('sys.symbol.hammer_fill'))
           .fontSize(20)
           .fontColor([Theme.TEXT_2])
           .onClick(() => {

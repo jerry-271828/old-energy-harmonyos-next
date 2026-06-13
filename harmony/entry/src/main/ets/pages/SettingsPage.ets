@@ -131,11 +131,14 @@ export struct SettingsPage {
           .fontColor(Theme.TEXT)
           .width('100%')
 
+        Column() {
         GlassCard({ innerPadding: 20 }) {
           this.userCard()
         }
+        }
         .width('100%')
 
+        Column() {
         GlassCard({ innerPadding: 16 }) {
           Column() {
             SettingRow({
@@ -214,8 +217,10 @@ export struct SettingsPage {
           }
           .width('100%')
         }
+        }
         .width('100%')
 
+        Column() {
         GlassCard({ innerPadding: 16 }) {
           Column() {
             Row({ space: 12 }) {
@@ -245,8 +250,10 @@ export struct SettingsPage {
           }
           .width('100%')
         }
+        }
         .width('100%')
 
+        Column() {
         SquishButton({
           onTap: () => {
             this.confirmLogout = true;
@@ -262,9 +269,11 @@ export struct SettingsPage {
             .backgroundColor('#14E94B4B')
             .borderRadius(Theme.R_XL)
         }
+        }
         .width('100%')
 
         if (this.confirmLogout) {
+          Column() {
           GlassCard({ innerPadding: 20 }) {
             Column({ space: 14 }) {
               Text('确定退出登录吗？')
@@ -290,6 +299,7 @@ export struct SettingsPage {
               .width('100%')
             }
             .width('100%')
+          }
           }
           .width('100%')
         }

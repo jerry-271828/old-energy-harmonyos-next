@@ -145,29 +145,31 @@ export struct CollectionPage {
         List({ space: 8 }) {
           ForEach(this.folders, (folder: CollectFolder) => {
             ListItem() {
-              GlassCard({ innerPadding: 14 }) {
-                Row({ space: 12 }) {
-                  SymbolGlyph($r('sys.symbol.folder'))
-                    .fontSize(22)
-                    .fontColor([Theme.PRIMARY])
-                  Column({ space: 3 }) {
-                    Text(folder.folderName)
-                      .fontSize(Theme.F_BODY)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(Theme.TEXT)
-                    Text(`${folder.collectCount} 题`)
-                      .fontSize(Theme.F_MINI)
-                      .fontColor(Theme.TEXT_3)
-                  }
-                  .layoutWeight(1)
-                  .alignItems(HorizontalAlign.Start)
+              Column() {
+                GlassCard({ innerPadding: 14 }) {
+                  Row({ space: 12 }) {
+                    SymbolGlyph($r('sys.symbol.folder'))
+                      .fontSize(22)
+                      .fontColor([Theme.PRIMARY])
+                    Column({ space: 3 }) {
+                      Text(folder.folderName)
+                        .fontSize(Theme.F_BODY)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Theme.TEXT)
+                      Text(`${folder.collectCount} 题`)
+                        .fontSize(Theme.F_MINI)
+                        .fontColor(Theme.TEXT_3)
+                    }
+                    .layoutWeight(1)
+                    .alignItems(HorizontalAlign.Start)
 
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(16)
-                    .fontColor([Theme.TEXT_3])
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([Theme.TEXT_3])
+                  }
+                  .width('100%')
+                  .alignItems(VerticalAlign.Center)
                 }
-                .width('100%')
-                .alignItems(VerticalAlign.Center)
               }
               .width('100%')
               .onClick(() => {
@@ -220,55 +222,57 @@ export struct CollectionPage {
         List({ space: 8 }) {
           ForEach(this.items, (item: CollectItem) => {
             ListItem() {
-              GlassCard({ innerPadding: 14 }) {
-                Column({ space: 8 }) {
-                  HtmlRichText({ html: item.questionStem })
+              Column() {
+                GlassCard({ innerPadding: 14 }) {
+                  Column({ space: 8 }) {
+                    HtmlRichText({ html: item.questionStem })
 
-                  if (item.answer !== null) {
-                    Row({ space: 6 }) {
-                      Text('答案')
-                        .fontSize(Theme.F_SUB)
-                        .fontColor(Theme.SUCCESS)
-                      Text(item.answer)
-                        .fontSize(Theme.F_SUB)
-                        .fontColor(Theme.TEXT)
-                        .layoutWeight(1)
+                    if (item.answer !== null) {
+                      Row({ space: 6 }) {
+                        Text('答案')
+                          .fontSize(Theme.F_SUB)
+                          .fontColor(Theme.SUCCESS)
+                        Text(item.answer)
+                          .fontSize(Theme.F_SUB)
+                          .fontColor(Theme.TEXT)
+                          .layoutWeight(1)
+                      }
                     }
-                  }
 
-                  if (item.questionAnalysis !== null && item.questionAnalysis.length > 0) {
-                    HtmlRichText({ html: item.questionAnalysis, baseFontSize: Theme.F_SUB })
-                  }
-
-                  Row({ space: 8 }) {
-                    if (item.courseName !== null) {
-                      Text(item.courseName)
-                        .fontSize(Theme.F_MINI)
-                        .fontColor(Theme.TEXT_3)
+                    if (item.questionAnalysis !== null && item.questionAnalysis.length > 0) {
+                      HtmlRichText({ html: item.questionAnalysis, baseFontSize: Theme.F_SUB })
                     }
-                    Blank().layoutWeight(1)
 
-                    if (item.tags !== null && item.tags.length > 0) {
-                      ForEach(item.tags, (tag: string) => {
-                        Text(tag)
+                    Row({ space: 8 }) {
+                      if (item.courseName !== null) {
+                        Text(item.courseName)
                           .fontSize(Theme.F_MINI)
-                          .fontColor(Theme.PRIMARY)
-                          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-                          .backgroundColor(Theme.PRIMARY_SOFT)
-                          .borderRadius(Theme.R_SM)
-                      }, (tag: string) => tag)
-                    }
+                          .fontColor(Theme.TEXT_3)
+                      }
+                      Blank().layoutWeight(1)
 
-                    SymbolGlyph($r('sys.symbol.trash'))
-                      .fontSize(16)
-                      .fontColor([Theme.DANGER])
-                      .onClick(() => {
-                        this.removeItem(item);
-                      })
+                      if (item.tags !== null && item.tags.length > 0) {
+                        ForEach(item.tags, (tag: string) => {
+                          Text(tag)
+                            .fontSize(Theme.F_MINI)
+                            .fontColor(Theme.PRIMARY)
+                            .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                            .backgroundColor(Theme.PRIMARY_SOFT)
+                            .borderRadius(Theme.R_SM)
+                        }, (tag: string) => tag)
+                      }
+
+                      SymbolGlyph($r('sys.symbol.trash'))
+                        .fontSize(16)
+                        .fontColor([Theme.DANGER])
+                        .onClick(() => {
+                          this.removeItem(item);
+                        })
+                    }
+                    .width('100%')
                   }
                   .width('100%')
                 }
-                .width('100%')
               }
               .width('100%')
             }

@@ -18,11 +18,14 @@ export class Downloader {
 
     try {
       const downloadDir = context.cacheDir + '/downloads';
+      const headerMap: Record<string, string> = {};
+      if (ApiClient.hasToken()) {
+        headerMap['Cookie'] = 'token=' + ApiClient.getToken();
+      }
       const config: request.DownloadConfig = {
         url: fullUrl,
         filePath: downloadDir + '/' + fileName,
-        header: ApiClient.hasToken()
-          ? { 'Cookie': 'token=' + ApiClient.getToken() } : {},
+        header: headerMap,
         enableMetered: true,
         enableRoaming: false,
         title: fileName,

@@ -32,13 +32,29 @@ export interface CollectTag {
   studentId: number;
 }
 
+interface CreateFolderBody {
+  folderName: string;
+}
+
+interface AddItemBody {
+  folderId: number;
+  questionId: number;
+  courseId?: number;
+  paperId?: number;
+}
+
+interface AddTagBody {
+  tagName: string;
+}
+
 export class CollectApi {
   static async folders(): Promise<CollectFolder[]> {
     return ApiClient.get<CollectFolder[]>('/api/collect/folder');
   }
 
   static async createFolder(name: string): Promise<CollectFolder> {
-    return ApiClient.post<CollectFolder>('/api/collect/folder', { folderName: name } as object);
+    const body: CreateFolderBody = { folderName: name };
+    return ApiClient.post<CollectFolder>('/api/collect/folder', body);
   }
 
   static async deleteFolder(id: number): Promise<void> {
@@ -52,14 +68,14 @@ export class CollectApi {
 
   static async addItem(folderId: number, questionId: number,
     courseId?: number, paperId?: number): Promise<void> {
-    const body: Record<string, number> = { folderId, questionId };
+    const body: AddItemBody = { folderId: folderId, questionId: questionId };
     if (courseId !== undefined) {
-      body['courseId'] = courseId;
+      body.courseId = courseId;
     }
     if (paperId !== undefined) {
-      body['paperId'] = paperId;
+      body.paperId = paperId;
     }
-    await ApiClient.post<object>('/api/collect/item', body as object);
+    await ApiClient.post<object>('/api/collect/item', body);
   }
 
   static async removeItem(id: number): Promise<void> {
@@ -71,7 +87,8 @@ export class CollectApi {
   }
 
   static async addTag(tagName: string): Promise<CollectTag> {
-    return ApiClient.post<CollectTag>('/api/collect/tag', { tagName } as object);
+    const body: AddTagBody = { tagName: tagName };
+    return ApiClient.post<CollectTag>('/api/collect/tag', body);
   }
 
   static async tagItem(itemId: number, tagId: number): Promise<void> {

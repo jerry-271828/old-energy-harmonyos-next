@@ -265,7 +265,11 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
     // plain text at top level
     if (n.tag === '' && n.text.trim().length > 0) {
       paras.push({
-        type: 'text', segments: [{ ...defaultSeg, text: n.text }],
+        type: 'text', segments: [{
+          text: n.text, bold: defaultSeg.bold, italic: defaultSeg.italic,
+          underline: defaultSeg.underline, strikethrough: defaultSeg.strikethrough,
+          color: defaultSeg.color, fontSize: defaultSeg.fontSize
+        }],
         images: [], headingLevel: 0, listItems: [], ordered: false
       });
       continue;
@@ -275,7 +279,11 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
     if (n.tag.length === 2 && n.tag.charAt(0) === 'h') {
       const level = parseInt(n.tag.charAt(1));
       if (!isNaN(level) && level >= 1 && level <= 6) {
-        const segs = collectSegments(n.children, { ...defaultSeg, bold: true });
+        const segs = collectSegments(n.children, {
+          text: defaultSeg.text, bold: true, italic: defaultSeg.italic,
+          underline: defaultSeg.underline, strikethrough: defaultSeg.strikethrough,
+          color: defaultSeg.color, fontSize: defaultSeg.fontSize
+        });
         paras.push({
           type: 'text', segments: segs, images: collectImages(n.children),
           headingLevel: level, listItems: [], ordered: false

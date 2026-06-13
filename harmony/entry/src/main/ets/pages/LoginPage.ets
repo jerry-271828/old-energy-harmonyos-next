@@ -159,8 +159,10 @@ export struct LoginPage {
           .fontWeight(FontWeight.Bold)
           .fontColor(Theme.TEXT)
 
-        GlassCard({ innerPadding: 26 }) {
-          this.loginCardContent()
+        Column() {
+          GlassCard({ innerPadding: 26 }) {
+            this.loginCardContent()
+          }
         }
         .width('86%')
         .constraintSize({ maxWidth: 420 })

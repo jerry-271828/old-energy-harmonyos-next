@@ -159,7 +159,7 @@ export struct CatalogTree {
               .layoutWeight(1)
 
             // red dot
-            RedDot({ show: this.reddotCatalogIds.has(row.node.id), size: 7 })
+            RedDot({ show: this.reddotCatalogIds.has(row.node.id), dotSize: 7 })
           }
           .width('100%')
           .height(40)
