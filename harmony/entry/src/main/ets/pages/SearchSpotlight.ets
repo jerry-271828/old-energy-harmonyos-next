@@ -155,31 +155,33 @@ export struct SearchSpotlight {
           List({ space: 6 }) {
             ForEach(this.filtered, (item: SearchResult) => {
               ListItem() {
-                GlassCard({ innerPadding: 12 }) {
-                  Row({ space: 10 }) {
-                    SymbolGlyph(item.type === 'catalog'
-                      ? $r('sys.symbol.folder') : $r('sys.symbol.doc_richtext'))
-                      .fontSize(20)
-                      .fontColor([Theme.PRIMARY])
+                Column() {
+                  GlassCard({ innerPadding: 12 }) {
+                    Row({ space: 10 }) {
+                      SymbolGlyph(item.type === 'catalog'
+                        ? $r('sys.symbol.folder') : $r('sys.symbol.doc_plaintext'))
+                        .fontSize(20)
+                        .fontColor([Theme.PRIMARY])
 
-                    Column({ space: 3 }) {
-                      Text(item.name)
-                        .fontSize(Theme.F_BODY)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor(Theme.TEXT)
-                        .maxLines(1)
-                        .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      Text(`${item.teacherName} / ${item.path}`)
-                        .fontSize(Theme.F_MINI)
-                        .fontColor(Theme.TEXT_3)
-                        .maxLines(1)
-                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      Column({ space: 3 }) {
+                        Text(item.name)
+                          .fontSize(Theme.F_BODY)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor(Theme.TEXT)
+                          .maxLines(1)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                        Text(`${item.teacherName} / ${item.path}`)
+                          .fontSize(Theme.F_MINI)
+                          .fontColor(Theme.TEXT_3)
+                          .maxLines(1)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      }
+                      .layoutWeight(1)
+                      .alignItems(HorizontalAlign.Start)
                     }
-                    .layoutWeight(1)
-                    .alignItems(HorizontalAlign.Start)
+                    .width('100%')
+                    .alignItems(VerticalAlign.Center)
                   }
-                  .width('100%')
-                  .alignItems(VerticalAlign.Center)
                 }
                 .width('100%')
               }

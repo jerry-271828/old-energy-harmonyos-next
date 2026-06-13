@@ -31,28 +31,31 @@ export struct TodoPanel {
 
   @Builder
   countdownCard() {
-    GlassCard({ innerPadding: 20 }) {
-      Column({ space: 8 }) {
-        Text('高考倒计时')
-          .fontSize(Theme.F_SUB)
-          .fontColor(Theme.TEXT_2)
-        Text(`${this.gaokaoDay}`)
-          .fontSize(48)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Theme.PRIMARY)
-        Text('天')
-          .fontSize(Theme.F_BODY)
-          .fontColor(Theme.TEXT_2)
+    Column() {
+      GlassCard({ innerPadding: 20 }) {
+        Column({ space: 8 }) {
+          Text('高考倒计时')
+            .fontSize(Theme.F_SUB)
+            .fontColor(Theme.TEXT_2)
+          Text(`${this.gaokaoDay}`)
+            .fontSize(48)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Theme.PRIMARY)
+          Text('天')
+            .fontSize(Theme.F_BODY)
+            .fontColor(Theme.TEXT_2)
+        }
+        .width('100%')
+        .alignItems(HorizontalAlign.Center)
       }
-      .width('100%')
-      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
   }
 
   @Builder
   timerCard() {
-    GlassCard({ innerPadding: 16 }) {
+    Column() {
+      GlassCard({ innerPadding: 16 }) {
       Column({ space: 10 }) {
         Text('学习计时')
           .fontSize(Theme.F_BODY)
@@ -101,13 +104,15 @@ export struct TodoPanel {
       }
       .width('100%')
       .alignItems(HorizontalAlign.Center)
+      }
     }
     .width('100%')
   }
 
   @Builder
   todoList() {
-    GlassCard({ innerPadding: 16 }) {
+    Column() {
+      GlassCard({ innerPadding: 16 }) {
       Column({ space: 10 }) {
         Text('待 办')
           .fontSize(Theme.F_BODY)
@@ -177,6 +182,7 @@ export struct TodoPanel {
         }
       }
       .width('100%')
+      }
     }
     .width('100%')
   }

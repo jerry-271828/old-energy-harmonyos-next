@@ -163,26 +163,28 @@ export struct AiPage {
         List({ space: 8 }) {
           ForEach(this.history, (item: AiAnswer) => {
             ListItem() {
-              GlassCard({ innerPadding: 14 }) {
-                Column({ space: 8 }) {
-                  Text(item.question)
-                    .fontSize(Theme.F_BODY)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(Theme.TEXT)
-                    .width('100%')
+              Column() {
+                GlassCard({ innerPadding: 14 }) {
+                  Column({ space: 8 }) {
+                    Text(item.question)
+                      .fontSize(Theme.F_BODY)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(Theme.TEXT)
+                      .width('100%')
 
-                  Text(item.answer)
-                    .fontSize(Theme.F_BODY)
-                    .fontColor(Theme.TEXT_2)
-                    .width('100%')
+                    Text(item.answer)
+                      .fontSize(Theme.F_BODY)
+                      .fontColor(Theme.TEXT_2)
+                      .width('100%')
 
-                  Text(item.createTime)
-                    .fontSize(Theme.F_MINI)
-                    .fontColor(Theme.TEXT_3)
-                    .width('100%')
-                    .textAlign(TextAlign.End)
+                    Text(item.createTime)
+                      .fontSize(Theme.F_MINI)
+                      .fontColor(Theme.TEXT_3)
+                      .width('100%')
+                      .textAlign(TextAlign.End)
+                  }
+                  .width('100%')
                 }
-                .width('100%')
               }
               .width('100%')
             }
@@ -211,33 +213,35 @@ export struct AiPage {
         List({ space: 8 }) {
           ForEach(this.libs, (lib: LibOverview) => {
             ListItem() {
-              GlassCard({ innerPadding: 14 }) {
-                Row({ space: 12 }) {
-                  Column({ space: 3 }) {
-                    Text(lib.libName ?? `知识库 ${lib.id}`)
-                      .fontSize(Theme.F_BODY)
-                      .fontWeight(FontWeight.Medium)
-                      .fontColor(Theme.TEXT)
-                    Text(`总题 ${lib.totalCount} · 错题 ${lib.wrongCount}`)
-                      .fontSize(Theme.F_MINI)
-                      .fontColor(Theme.TEXT_3)
-                  }
-                  .layoutWeight(1)
-                  .alignItems(HorizontalAlign.Start)
+              Column() {
+                GlassCard({ innerPadding: 14 }) {
+                  Row({ space: 12 }) {
+                    Column({ space: 3 }) {
+                      Text(lib.libName ?? `知识库 ${lib.id}`)
+                        .fontSize(Theme.F_BODY)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Theme.TEXT)
+                      Text(`总题 ${lib.totalCount} · 错题 ${lib.wrongCount}`)
+                        .fontSize(Theme.F_MINI)
+                        .fontColor(Theme.TEXT_3)
+                    }
+                    .layoutWeight(1)
+                    .alignItems(HorizontalAlign.Start)
 
-                  if (lib.correctRate !== null) {
-                    Text(lib.correctRate)
-                      .fontSize(Theme.F_BODY)
-                      .fontColor(Theme.SUCCESS)
-                      .fontWeight(FontWeight.Bold)
-                  }
+                    if (lib.correctRate !== null) {
+                      Text(lib.correctRate)
+                        .fontSize(Theme.F_BODY)
+                        .fontColor(Theme.SUCCESS)
+                        .fontWeight(FontWeight.Bold)
+                    }
 
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(16)
-                    .fontColor([Theme.TEXT_3])
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([Theme.TEXT_3])
+                  }
+                  .width('100%')
+                  .alignItems(VerticalAlign.Center)
                 }
-                .width('100%')
-                .alignItems(VerticalAlign.Center)
               }
               .width('100%')
               .onClick(() => {
@@ -277,36 +281,38 @@ export struct AiPage {
           List({ space: 8 }) {
             ForEach(this.wrongQuestions, (wq: WrongQuestion) => {
               ListItem() {
-                GlassCard({ innerPadding: 14 }) {
-                  Column({ space: 6 }) {
-                    HtmlRichText({ html: wq.questionStem })
-                    if (wq.answer !== null) {
-                      Row({ space: 6 }) {
-                        Text('正确答案')
-                          .fontSize(Theme.F_SUB)
-                          .fontColor(Theme.SUCCESS)
-                        Text(wq.answer)
-                          .fontSize(Theme.F_SUB)
-                          .fontColor(Theme.TEXT)
+                Column() {
+                  GlassCard({ innerPadding: 14 }) {
+                    Column({ space: 6 }) {
+                      HtmlRichText({ html: wq.questionStem })
+                      if (wq.answer !== null) {
+                        Row({ space: 6 }) {
+                          Text('正确答案')
+                            .fontSize(Theme.F_SUB)
+                            .fontColor(Theme.SUCCESS)
+                          Text(wq.answer)
+                            .fontSize(Theme.F_SUB)
+                            .fontColor(Theme.TEXT)
+                        }
+                      }
+                      if (wq.studentAnswer !== null) {
+                        Row({ space: 6 }) {
+                          Text('我的答案')
+                            .fontSize(Theme.F_SUB)
+                            .fontColor(Theme.DANGER)
+                          Text(wq.studentAnswer)
+                            .fontSize(Theme.F_SUB)
+                            .fontColor(Theme.TEXT)
+                        }
+                      }
+                      if (wq.wrongCause !== null && wq.wrongCause.length > 0) {
+                        Text(`错因：${wq.wrongCause}`)
+                          .fontSize(Theme.F_MINI)
+                          .fontColor(Theme.TEXT_3)
                       }
                     }
-                    if (wq.studentAnswer !== null) {
-                      Row({ space: 6 }) {
-                        Text('我的答案')
-                          .fontSize(Theme.F_SUB)
-                          .fontColor(Theme.DANGER)
-                        Text(wq.studentAnswer)
-                          .fontSize(Theme.F_SUB)
-                          .fontColor(Theme.TEXT)
-                      }
-                    }
-                    if (wq.wrongCause !== null && wq.wrongCause.length > 0) {
-                      Text(`错因：${wq.wrongCause}`)
-                        .fontSize(Theme.F_MINI)
-                        .fontColor(Theme.TEXT_3)
-                    }
+                    .width('100%')
                   }
-                  .width('100%')
                 }
                 .width('100%')
               }

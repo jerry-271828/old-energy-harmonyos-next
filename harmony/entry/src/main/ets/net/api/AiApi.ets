@@ -39,9 +39,19 @@ export interface LibOverview {
   correctRate: string | null;
 }
 
+interface AskBody {
+  question: string;
+}
+
+interface ReformBody {
+  questionId: number;
+  wrongCause: string;
+}
+
 export class AiApi {
   static async ask(question: string): Promise<AiAnswer> {
-    return ApiClient.post<AiAnswer>('/api/ai/stu/ask', { question } as object);
+    const body: AskBody = { question: question };
+    return ApiClient.post<AiAnswer>('/api/ai/stu/ask', body);
   }
 
   static async history(page: number, size: number): Promise<AiAnswer[]> {
@@ -58,7 +68,7 @@ export class AiApi {
   }
 
   static async reform(questionId: number, wrongCause: string): Promise<void> {
-    await ApiClient.post<object>('/api/ai/stu/reform',
-      { questionId, wrongCause } as object);
+    const body: ReformBody = { questionId: questionId, wrongCause: wrongCause };
+    await ApiClient.post<object>('/api/ai/stu/reform', body);
   }
 }

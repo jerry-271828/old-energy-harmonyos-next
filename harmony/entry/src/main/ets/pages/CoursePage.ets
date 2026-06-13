@@ -126,7 +126,7 @@ export struct CoursePage {
               .fontSize(Theme.F_BODY)
               .fontColor(this.selectedTeacherIdx === idx ? Color.White : Theme.TEXT)
               .fontWeight(this.selectedTeacherIdx === idx ? FontWeight.Medium : FontWeight.Normal)
-            RedDot({ show: this.reddotTeacherIds.has(t.teacherUserId), size: 6 })
+            RedDot({ show: this.reddotTeacherIds.has(t.teacherUserId), dotSize: 6 })
           }
           .padding({ left: 16, right: 16, top: 8, bottom: 8 })
           .backgroundColor(this.selectedTeacherIdx === idx ? Theme.PRIMARY : Theme.SURFACE)
@@ -161,41 +161,43 @@ export struct CoursePage {
       List({ space: 8 }) {
         ForEach(this.courseItems, (item: CourseListItem) => {
           ListItem() {
-            GlassCard({ innerPadding: 14 }) {
-              Row({ space: 10 }) {
-                SymbolGlyph($r('sys.symbol.doc_richtext'))
-                  .fontSize(20)
-                  .fontColor([Theme.PRIMARY])
+            Column() {
+              GlassCard({ innerPadding: 14 }) {
+                Row({ space: 10 }) {
+                  SymbolGlyph($r('sys.symbol.doc_plaintext'))
+                    .fontSize(20)
+                    .fontColor([Theme.PRIMARY])
 
-                Column({ space: 4 }) {
-                  Text(item.courseName)
-                    .fontSize(Theme.F_BODY)
-                    .fontColor(Theme.TEXT)
-                    .fontWeight(FontWeight.Medium)
-                    .maxLines(2)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  Column({ space: 4 }) {
+                    Text(item.courseName)
+                      .fontSize(Theme.F_BODY)
+                      .fontColor(Theme.TEXT)
+                      .fontWeight(FontWeight.Medium)
+                      .maxLines(2)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-                  if (item.coursePublishTime) {
-                    Text(item.coursePublishTime)
-                      .fontSize(Theme.F_MINI)
-                      .fontColor(Theme.TEXT_3)
+                    if (item.coursePublishTime) {
+                      Text(item.coursePublishTime)
+                        .fontSize(Theme.F_MINI)
+                        .fontColor(Theme.TEXT_3)
+                    }
+                  }
+                  .layoutWeight(1)
+                  .alignItems(HorizontalAlign.Start)
+
+                  Row() {
+                    RedDot({
+                      show: this.reddotCourseIds.has(item.originCourseId),
+                      dotSize: 7
+                    })
+                    SymbolGlyph($r('sys.symbol.chevron_right'))
+                      .fontSize(16)
+                      .fontColor([Theme.TEXT_3])
                   }
                 }
-                .layoutWeight(1)
-                .alignItems(HorizontalAlign.Start)
-
-                Row() {
-                  RedDot({
-                    show: this.reddotCourseIds.has(item.originCourseId),
-                    size: 7
-                  })
-                  SymbolGlyph($r('sys.symbol.chevron_right'))
-                    .fontSize(16)
-                    .fontColor([Theme.TEXT_3])
-                }
+                .width('100%')
+                .alignItems(VerticalAlign.Center)
               }
-              .width('100%')
-              .alignItems(VerticalAlign.Center)
             }
             .width('100%')
             .onClick(() => {
