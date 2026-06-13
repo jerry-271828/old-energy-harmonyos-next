@@ -8,6 +8,7 @@ import { SessionStore } from '../store/SessionStore';
 import { SettingsStore } from '../store/SettingsStore';
 import { UiStore } from '../store/UiStore';
 import { TodoStore } from '../store/TodoStore';
+import { Downloader } from '../utils/Downloader';
 
 const DOMAIN = 0x0001;
 const TAG = 'EntryAbility';
@@ -24,6 +25,9 @@ export default class EntryAbility extends UIAbility {
     SessionStore.instance.init(this.context);
     // 自动登录在后台跑，UI 由 SessionStore.booting 控制开屏态
     SessionStore.instance.tryAutoLogin(SettingsStore.instance.autoLogin);
+    // 冷启动时静默清理上次预览缓存（附件 PDF/视频下到沙箱后预览，每次启动清除）
+    Downloader.clearCache(this.context);
+
   }
 
   onDestroy(): void {

@@ -3,6 +3,7 @@
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { cameraPicker, camera } from '@kit.CameraKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -21,6 +22,33 @@ export class PhotoUploader {
       return null;
     }
     return PhotoUploader.uploadAndBind(context, uri, entityId, questionId, kind);
+  }
+
+  static async captureAndUpload(context: common.UIAbilityContext, entityId: number,
+    questionId: number, kind: StudyKind): Promise<UploadResult | null> {
+    const uri = await PhotoUploader.capturePhoto(context);
+    if (uri === null) {
+      return null;
+    }
+    return PhotoUploader.uploadAndBind(context, uri, entityId, questionId, kind);
+  }
+
+  static async capturePhoto(context: common.UIAbilityContext): Promise<string | null> {
+    try {
+      const pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
+      };
+      const result = await cameraPicker.pick(context,
+        [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
+      if (result.resultCode === 0 && result.resultUri.length > 0) {
+        return result.resultUri;
+      }
+      return null;
+    } catch (e) {
+      const err = e as BusinessError;
+      hilog.error(DOMAIN, TAG, 'capturePhoto failed: %{public}s', err.message);
+      return null;
+    }
   }
 
   static async pickPhoto(context: common.UIAbilityContext): Promise<string | null> {

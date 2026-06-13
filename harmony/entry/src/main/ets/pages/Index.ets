@@ -21,6 +21,7 @@ import { WebShellPage } from './WebShellPage';
 import { CourseDetailPage } from './CourseDetailPage';
 import { SearchSpotlight } from './SearchSpotlight';
 import { TodoPanel } from './TodoPanel';
+import { AttachmentViewerPage } from './AttachmentViewerPage';
 
 interface TabItem {
   label: string;
@@ -123,6 +124,8 @@ struct Index {
       SearchSpotlight()
     } else if (name === 'todo') {
       TodoPanel()
+    } else if (name === 'attachmentViewer') {
+      AttachmentViewerPage()
     }
   }
 
