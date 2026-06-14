@@ -145,15 +145,18 @@ export class StudyApi {
   }
 
   // 作答附件（拍照/手写图）绑定与删除
+  // 绑定：POST（真机抓包+Vue 源码函数 d 双确认；原先用 GET → code 9999「服务器错误！」，
+  // 是「手写/拍照作答提交报错」的根因之一）。无 body；extraQuery 可带可选 ?attachmentSourceId=。
   async bindAnswerAttachment(entityId: number, questionId: number,
     attachmentId: number, extraQuery: string): Promise<void> {
-    await ApiClient.get<object>(
-      `/api/student/${this.kind}/entity/${entityId}/question/${questionId}/attachment/${attachmentId}${extraQuery}`);
+    await ApiClient.post<object>(
+      `/api/student/${this.kind}/entity/${entityId}/question/${questionId}/attachment/${attachmentId}${extraQuery}`, null);
   }
 
+  // 解绑：PUT（对照 Vue 源码函数 m；原先用 GET）。
   async deleteAnswerAttachment(entityId: number, questionId: number,
     attachmentId: number): Promise<void> {
-    await ApiClient.get<object>(
-      `/api/student/${this.kind}/entity/${entityId}/question/${questionId}/attachment/${attachmentId}/del`);
+    await ApiClient.put<object>(
+      `/api/student/${this.kind}/entity/${entityId}/question/${questionId}/attachment/${attachmentId}/del`, null);
   }
 }
