@@ -9,6 +9,7 @@ import { SettingsStore } from '../store/SettingsStore';
 import { UiStore } from '../store/UiStore';
 import { TodoStore } from '../store/TodoStore';
 import { Downloader } from '../utils/Downloader';
+import BrushEngineContext from '../utils/BrushEngineContext';
 
 const DOMAIN = 0x0001;
 const TAG = 'EntryAbility';
@@ -20,6 +21,9 @@ export default class EntryAbility extends UIAbility {
     // WebView 回退模式下桥的 getValue 也是同步读）。
     GmStorage.init(this.context);
     GmNotifier.init(this.context);
+    // Pen Kit 手写套件：笔刷引擎从 globalThis._brushEngineContext 读 context，
+    // 必须先于任何 HandwriteComponent 挂载设置（官方 codelab 的「设置 context」步骤）。
+    BrushEngineContext.setContext(this.context);
     SettingsStore.instance.load();
     TodoStore.instance.load();
     SessionStore.instance.init(this.context);
