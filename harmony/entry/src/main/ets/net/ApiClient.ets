@@ -51,15 +51,20 @@ export class ApiClient {
     return ApiClient.BASE + path;
   }
 
-  // 静态资源（内容图片等）绝对化：textContent 里的 src 是 /exam/jyhr/... 形式
+  // 静态资源绝对化。服务端文件都挂在应用根 /exam/ 下：
+  //   - content 图片 src 已是 /exam/jyhr/... → 原样接 ORIGIN
+  //   - 附件 statistics 给的明文路径是 /jyhr/uploadFile/...（少了 /exam 段）→ 必须补 /exam，否则 404
   static assetUrl(src: string): string {
     if (src.startsWith('http://') || src.startsWith('https://')) {
       return src;
     }
-    if (src.startsWith('/')) {
+    if (src.startsWith('/exam/')) {
       return ApiClient.ORIGIN + src;
     }
-    return ApiClient.ORIGIN + '/' + src;
+    if (src.startsWith('/')) {
+      return ApiClient.ORIGIN + '/exam' + src;
+    }
+    return ApiClient.BASE + '/' + src;
   }
 
   static async get<T>(path: string): Promise<T> {
