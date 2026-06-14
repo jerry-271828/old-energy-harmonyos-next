@@ -1,11 +1,16 @@
-// 文件下载工具：request.downloadFile 落盘到应用沙箱缓存。
+// 文件下载工具：用 NetworkKit http 流式落盘到应用沙箱缓存。
 // 既给 PDF 下载按钮用，也作为附件预览（PdfView / Video 本地回退）的取数通道。
 // PdfView.loadDocument 只认本地沙箱路径，Video 本地播放也要 file:// 沙箱 URI，
 // 所以网络附件统一先下到 cacheDir/attachments 再交给预览组件。
+//
+// 为什么不用 request.downloadFile：那是独立的系统下载代理进程，在本服务器
+// （非标 :5002 HTTPS）上会以 ERROR_UNKNOWN(code 8) 失败（连接/TLS 握手超时）；
+// 而 ApiClient 用的同一套 NetworkKit http 栈对该 host 是通的（登录/接口全部成功）。
+// 故这里复用 http 栈，带上同样的 token cookie，绕开下载代理的差异。改回 downloadFile 会复发 code 8。
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { request } from '@kit.BasicServicesKit';
+import { http } from '@kit.NetworkKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { ApiClient } from '../net/ApiClient';
@@ -48,31 +53,78 @@ export class Downloader {
       // 探测失败按未命中处理
     }
 
-    const headerMap: Record<string, string> = {};
+    const headerMap: Record<string, string> = { 'Accept': '*/*' };
     if (ApiClient.hasToken()) {
       headerMap['Cookie'] = 'token=' + ApiClient.getToken();
     }
-    const config: request.DownloadConfig = {
-      url: fullUrl,
-      filePath: filePath,
+
+    // 先下到 .part 临时文件，成功再改名为目标名——避免半截文件被上面的"非空即命中"逻辑误当成缓存。
+    const tmpPath = filePath + '.part';
+    Downloader.safeUnlink(tmpPath);
+    const file = fileIo.openSync(tmpPath,
+      fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+    const client = http.createHttp();
+    let writeError = '';
+    let totalBytes = 0;
+    // dataReceive 在同一线程顺序回调，writeSync 同步写，分块顺序天然保证。
+    client.on('dataReceive', (chunk: ArrayBuffer) => {
+      if (writeError.length > 0) {
+        return;
+      }
+      try {
+        totalBytes += fileIo.writeSync(file.fd, chunk);
+      } catch (e) {
+        writeError = (e as BusinessError).message || 'write error';
+      }
+    });
+
+    const options: http.HttpRequestOptions = {
+      method: http.RequestMethod.GET,
       header: headerMap,
-      enableMetered: true,
-      enableRoaming: false,
-      title: safeName,
-      description: '正在加载附件 ' + safeName
+      connectTimeout: 15000,
+      readTimeout: 60000,
+      usingCache: false
     };
     hilog.info(DOMAIN, TAG, 'download start: %{public}s -> %{public}s', fullUrl, filePath);
-    const task = await request.downloadFile(context, config);
-    return new Promise<string>((resolve, reject) => {
-      task.on('complete', () => {
-        hilog.info(DOMAIN, TAG, 'download complete: %{public}s', safeName);
-        resolve(filePath);
-      });
-      task.on('fail', (err: number) => {
-        hilog.error(DOMAIN, TAG, 'download failed: %{public}d', err);
-        reject(new Error('download failed (code ' + err + ')'));
-      });
-    });
+
+    const cleanup = (): void => {
+      client.off('dataReceive');
+      try {
+        fileIo.closeSync(file);
+      } catch (e) {
+        // 已关闭/无效 fd，忽略
+      }
+      client.destroy();
+    };
+
+    let status = -1;
+    try {
+      status = await client.requestInStream(fullUrl, options);
+    } catch (e) {
+      cleanup();
+      Downloader.safeUnlink(tmpPath);
+      const err = e as BusinessError;
+      hilog.error(DOMAIN, TAG, 'download failed: %{public}s', err.message);
+      throw new Error('download failed (' + (err.message || 'network error') + ')');
+    }
+    cleanup();
+
+    if (writeError.length > 0) {
+      Downloader.safeUnlink(tmpPath);
+      throw new Error('download failed (write: ' + writeError + ')');
+    }
+    if (status >= 400) {
+      Downloader.safeUnlink(tmpPath);
+      throw new Error('download failed (HTTP ' + status + ')');
+    }
+    if (totalBytes === 0) {
+      Downloader.safeUnlink(tmpPath);
+      throw new Error('download failed (empty response)');
+    }
+    Downloader.safeUnlink(filePath);
+    fileIo.renameSync(tmpPath, filePath);
+    hilog.info(DOMAIN, TAG, 'download complete: %{public}s (%{public}d bytes)', safeName, totalBytes);
+    return filePath;
   }
 
   // 兼容旧调用：仅关心成功与否。
@@ -101,6 +153,17 @@ export class Downloader {
     } catch (e) {
       const err = e as BusinessError;
       hilog.warn(DOMAIN, TAG, 'clearCache failed: %{public}s', err.message);
+    }
+  }
+
+  // 静默删除（不存在/失败都不抛）：清理失败或残留的 .part 临时文件。
+  private static safeUnlink(p: string): void {
+    try {
+      if (fileIo.accessSync(p)) {
+        fileIo.unlinkSync(p);
+      }
+    } catch (e) {
+      // ignore
     }
   }
 
