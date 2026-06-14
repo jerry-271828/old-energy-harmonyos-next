@@ -18,6 +18,8 @@ const K_PWD = 'bxny_pwd';
 const K_REMEMBER = 'bxny_remember';
 const K_USER = 'bxny_user_info';
 
+const AUTO_LOGIN_TIMEOUT_MS = 8000;   // 无缓存会话时自动登录的硬超时，避免冷网络下开屏卡死
+
 @ObservedV2
 export class SessionStore {
   static readonly instance: SessionStore = new SessionStore();
@@ -59,16 +61,62 @@ export class SessionStore {
   // 启动自动登录：有记住的凭据就直接 signin（语义对应油猴"自动登录"开关，
   // 该开关在脚本里是强制开启的，这里同样默认开启，可在设置页关）。
   async tryAutoLogin(autoLoginEnabled: boolean): Promise<void> {
-    if (autoLoginEnabled && this.account.length > 0 && this.pwd.length > 0) {
+    // 自动登录关：始终回登录页，不拿缓存会话自动进入。
+    if (!autoLoginEnabled) {
+      this.booting = false;
+      return;
+    }
+    const hasCreds = this.account.length > 0 && this.pwd.length > 0;
+    // 有缓存会话（init 已把 token 装入 ApiClient、user 反序列化）：乐观进入，登录刷新丢到
+    // 后台，绝不阻塞首屏——这是开屏卡死的直接根因。token 失效由静默重登在首个 API 401 兜底。
+    if (ApiClient.hasToken() && this.user !== null) {
+      this.loggedIn = true;
+      this.booting = false;
+      if (hasCreds) {
+        this.refreshLoginInBackground();
+      }
+      return;
+    }
+    // 无缓存会话但有凭据：做一次带硬超时的登录，避免冷网络（DNS/TLS 握手慢）下开屏无限等待。
+    if (hasCreds) {
       try {
-        await this.signin(this.account, this.pwd, this.remember);
+        await SessionStore.withTimeout(
+          this.signin(this.account, this.pwd, this.remember), AUTO_LOGIN_TIMEOUT_MS);
         hilog.info(DOMAIN, TAG, 'auto login ok');
       } catch (e) {
         const err = e as BusinessError;
-        hilog.warn(DOMAIN, TAG, 'auto login failed: %{public}s', err.message);
+        hilog.warn(DOMAIN, TAG, 'auto login failed/timeout: %{public}s', err.message);
       }
     }
     this.booting = false;
+  }
+
+  // 后台静默刷新登录态：成功换到新 token；失败保留缓存会话（由静默重登在后续请求兜底）。
+  private refreshLoginInBackground(): void {
+    this.signin(this.account, this.pwd, this.remember)
+      .then(() => {
+        hilog.info(DOMAIN, TAG, 'background login refresh ok');
+      })
+      .catch((e: BusinessError) => {
+        hilog.warn(DOMAIN, TAG, 'background login refresh failed: %{public}s', e.message);
+      });
+  }
+
+  // 给 Promise 套硬超时：超时即 reject。底层请求仍会在后台跑完——若它最终 signin 成功，
+  // signin 内部照常置 loggedIn=true，Index 会自动从开屏/登录页切到主页，是一种自愈而非 bug。
+  private static withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('timeout'));
+      }, ms);
+      p.then((v: T) => {
+        clearTimeout(timer);
+        resolve(v);
+      }).catch((e: Object) => {
+        clearTimeout(timer);
+        reject(e);
+      });
+    });
   }
 
   async signin(account: string, pwd: string, remember: boolean): Promise<UserInfo> {
