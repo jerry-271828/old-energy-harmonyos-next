@@ -17,7 +17,7 @@ import { QuestionContent, AnswerRecord } from '../models/Question';
 import { SettingsStore } from '../store/SettingsStore';
 import { ApiClient } from '../net/ApiClient';
 import { PhotoUploader } from '../utils/PhotoUploader';
-import { QuickSubmitStore } from '../store/QuickSubmitStore';
+import { QuickSubmitSheet, QuickSubmitItem, QuickSubmitFill } from '../components/QuickSubmitSheet';
 import { Downloader } from '../utils/Downloader';
 import { AttachmentViewerParam } from './AttachmentViewerPage';
 import { HandwritePanel } from '../components/HandwritePanel';
@@ -56,6 +56,9 @@ export struct CourseDetailPage {
   @Local private showAnnotation: boolean = false;
   @Local private handwriteQuestionId: number = 0;  // >0 时显示手写作答面板
   @Local private handwriteStem: string = '';
+  @Local private showQuickSubmit: boolean = false;   // 快捷提交弹窗
+  @Local private quickSubmitting: boolean = false;
+  @Local private quickItems: QuickSubmitItem[] = [];
   // 点选乐观更新覆盖层：qid → studentAnswer。点击即写，给即时高亮反馈；
   // 保存成功/失败后重拉 answers() 再清除对应项，回到服务端真值（含判分）。
   @Local private pendingAnswers: Map<number, string> = new Map<number, string>();
@@ -227,7 +230,6 @@ export struct CourseDetailPage {
         clearInterval(this.countdownTimer);
         this.countdownTimer = -1;
       }
-      QuickSubmitStore.remove(this.entityId);
       // 重拉实体信息/作答/统计：mappingStatus 翻 1 后按钮自动变「补交」
       await this.refreshState();
       hilog.info(DOMAIN, TAG, 'submitted entity %{public}d', this.entityId);
@@ -283,6 +285,76 @@ export struct CourseDetailPage {
   private autoSubmit(): void {
     hilog.info(DOMAIN, TAG, 'auto-submit triggered for entity %{public}d', this.entityId);
     this.doSubmit();
+  }
+
+  // 收集本页所有可快捷作答的选择题（含复合题的叶子子题），对照油猴脚本捕获逻辑。
+  private buildQuickSubmitItems(): QuickSubmitItem[] {
+    const items: QuickSubmitItem[] = [];
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.contentType !== 2 || b.question === null) {
+        continue;
+      }
+      const q = b.question;
+      if (q.childList !== null && q.childList.length > 0) {
+        for (let c = 0; c < q.childList.length; c++) {
+          const child = q.childList[c];
+          if (child.answerCard !== null && child.answerCard.length > 0) {
+            items.push({
+              questionId: child.id,
+              qNum: child.questionNumber,
+              correctAnswer: child.answer ?? '',
+              studentAnswer: this.getStudentAnswer(child.id)
+            });
+          }
+        }
+      } else if (q.answerCard !== null && q.answerCard.length > 0) {
+        items.push({
+          questionId: q.id,
+          qNum: q.questionNumber,
+          correctAnswer: q.answer ?? '',
+          studentAnswer: this.getStudentAnswer(q.id)
+        });
+      }
+    }
+    return items;
+  }
+
+  private openQuickSubmit(): void {
+    this.quickItems = this.buildQuickSubmitItems();
+    this.showQuickSubmit = true;
+  }
+
+  // 快捷提交：把各段答案保存到对应题后，触发整卷提交/补交
+  // （对照脚本：逐题 POST /question 后点「手动提交」按钮）。
+  private async runQuickSubmit(fills: QuickSubmitFill[]): Promise<void> {
+    if (this.quickSubmitting) {
+      return;
+    }
+    this.quickSubmitting = true;
+    const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
+    // resubmitTag = mappingStatus===1 ? 1 : 0（与单题保存一致；脚本恒为 1 但以后端契约为准）
+    const resubmitTag = (this.entityInfo !== null && this.entityInfo.mappingStatus === 1) ? 1 : 0;
+    try {
+      for (let i = 0; i < fills.length; i++) {
+        try {
+          await api.saveAnswer(this.entityId, fills[i].questionId, fills[i].studentAnswer, resubmitTag);
+        } catch (e) {
+          const err = e as Error;
+          hilog.error(DOMAIN, TAG, 'quick save q%{public}d failed: %{public}s',
+            fills[i].questionId, err.message);
+        }
+      }
+      // 触发整卷提交/补交（doSubmit/doResubmit 内部会 refreshState 重拉真值）
+      if (this.submitted) {
+        await this.doResubmit();
+      } else {
+        await this.doSubmit();
+      }
+    } finally {
+      this.quickSubmitting = false;
+      this.showQuickSubmit = false;
+    }
   }
 
   private findAnswer(questionId: number): AnswerRecord | null {
@@ -817,7 +889,8 @@ export struct CourseDetailPage {
     }
   }
 
-  // 选项状态：提交后按正确答案着色
+  // 选项状态：仅对「已作答且已判分」的题目按正确答案着色。
+  // 未提交作答的题目（无作答记录 / studentAnswer 为空）一律不揭示正确答案（不显示绿色）。
   // 返回: 'default' | 'selected' | 'correct' | 'wrong'
   private getOptionState(q: QuestionContent, opt: string): string {
     const selected = this.isOptionSelected(q, opt);
@@ -825,7 +898,9 @@ export struct CourseDetailPage {
       return selected ? 'selected' : 'default';
     }
     const rec = this.findAnswer(q.id);
-    if (rec === null || rec.judgeTag === null || rec.judgeTag < 0) {
+    // 学生未作答此题 → 不揭示正确选项（即便整卷已提交，空白题也不标绿）。
+    const studentAns = (rec !== null && rec.studentAnswer !== null) ? rec.studentAnswer.trim() : '';
+    if (rec === null || studentAns.length === 0 || rec.judgeTag === null || rec.judgeTag < 0) {
       return selected ? 'selected' : 'default';
     }
     const correctRaw = q.answer ?? '';
@@ -991,25 +1066,14 @@ export struct CourseDetailPage {
                 if (this.hasQuestions) {
                   SquishButton({
                     onTap: () => {
-                      if (!this.submitting) {
-                        if (this.submitted) {
-                          this.doResubmit();
-                        } else {
-                          this.doSubmit();
-                        }
-                      }
+                      this.openQuickSubmit();
                     }
                   }) {
                     Row({ space: 6 }) {
-                      if (this.submitting) {
-                        LoadingProgress().width(14).height(14).color(Color.White)
-                      } else {
-                        SymbolGlyph($r('sys.symbol.share'))
-                          .fontSize(16)
-                          .fontColor([Color.White])
-                      }
-                      Text(this.submitting ? '提交中...'
-                        : (this.submitted ? '快捷补交' : '快捷提交'))
+                      SymbolGlyph($r('sys.symbol.share'))
+                        .fontSize(16)
+                        .fontColor([Color.White])
+                      Text(this.submitted ? '快捷补交' : '快捷提交')
                         .fontSize(Theme.F_SUB)
                         .fontWeight(FontWeight.Medium)
                         .fontColor(Color.White)
@@ -1175,12 +1239,35 @@ export struct CourseDetailPage {
             }
           })
         }
+
+        // 快捷提交弹窗
+        if (this.showQuickSubmit) {
+          QuickSubmitSheet({
+            items: this.quickItems,
+            allowCheck: this.settings.enableAnswerForce && this.kind === 'course',
+            submitting: this.quickSubmitting,
+            onClose: () => {
+              if (!this.quickSubmitting) {
+                this.showQuickSubmit = false;
+              }
+            },
+            onSubmit: (fills: QuickSubmitFill[]) => {
+              this.runQuickSubmit(fills);
+            }
+          })
+        }
       }
       .width('100%')
       .height('100%')
     }
     .hideTitleBar(true)
     .onBackPressed(() => {
+      if (this.showQuickSubmit) {
+        if (!this.quickSubmitting) {
+          this.showQuickSubmit = false;
+        }
+        return true;
+      }
       if (this.showAnnotation) {
         this.showAnnotation = false;
         return true;
