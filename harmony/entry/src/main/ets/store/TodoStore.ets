@@ -33,12 +33,15 @@ export class TodoStore {
   }
 
   add(text: string): void {
-    this.items.unshift({
+    // 用整体重新赋值触发 @Trace 通知，而非 in-place unshift——
+    // V2 对数组 API 的深度观察跨 SDK 版本不稳，重新赋值是版本无关的可靠刷新路径。
+    const item: TodoItem = {
       id: `todo_${Date.now()}`,
       text: text,
       done: false,
       createTime: Date.now()
-    });
+    };
+    this.items = [item, ...this.items];
     this.persist();
   }
 
