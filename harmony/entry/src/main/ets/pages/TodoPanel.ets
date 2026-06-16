@@ -8,9 +8,12 @@ import { TodoStore, TodoItem, GaokaoCountdown, StudyTimer } from '../store/TodoS
 
 @ComponentV2
 export struct TodoPanel {
-  ui: UiStore = UiStore.instance;
-  todo: TodoStore = TodoStore.instance;
-  timer: StudyTimer = StudyTimer.instance;
+  // 必须用 @Local 持有这些 @ObservedV2 单例：@ComponentV2 里「常规（无装饰器）成员变量」
+  // 不被观察——初始化后不再响应变化，导致计时器秒数自增、待办增删都不触发本页重渲染
+  // （只有返回再进、aboutToAppear 重新读取时才更新）。@Local + @ObservedV2/@Trace 才建立深度观察。
+  @Local ui: UiStore = UiStore.instance;
+  @Local todo: TodoStore = TodoStore.instance;
+  @Local timer: StudyTimer = StudyTimer.instance;
 
   @Local private newTodoText: string = '';
   @Local private gaokaoDay: number = 0;
