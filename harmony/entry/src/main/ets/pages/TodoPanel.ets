@@ -178,7 +178,7 @@ export struct TodoPanel {
             }
             .width('100%')
             .padding({ top: 6, bottom: 6 })
-          }, (item: TodoItem) => item.id)
+          }, (item: TodoItem) => `${item.id}_${item.done ? 1 : 0}`)
         }
       }
       .width('100%')

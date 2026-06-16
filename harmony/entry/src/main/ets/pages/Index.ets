@@ -11,6 +11,7 @@ import { SymbolGlyphModifier } from '@kit.ArkUI';
 import { Theme } from '../theme/Theme';
 import { Nav } from '../utils/Nav';
 import { SessionStore } from '../store/SessionStore';
+import { UiStore } from '../store/UiStore';
 import { LoginPage } from './LoginPage';
 import { CoursePage } from './CoursePage';
 import { ExamPage } from './ExamPage';
@@ -41,6 +42,7 @@ const TABS: TabItem[] = [
 struct Index {
   private tabsController: HdsTabsController = new HdsTabsController();
   session: SessionStore = SessionStore.instance;
+  ui: UiStore = UiStore.instance;
 
   @Builder
   tabContentBody(index: number) {
@@ -82,6 +84,8 @@ struct Index {
       })
 
       // Floating action buttons: search + tools
+      // 顶部悬浮按钮处于 expandSafeArea 全屏 Stack 内，必须按状态栏高度避让，
+      // 否则被状态栏/刘海遮挡（与各 Tab 页标题用同一 topSafeVp+12 基线对齐）。
       Row({ space: 8 }) {
         SymbolGlyph($r('sys.symbol.magnifyingglass'))
           .fontSize(20)
@@ -96,7 +100,7 @@ struct Index {
             Nav.push('todo', null);
           })
       }
-      .padding({ left: 12, right: 16, top: 10 })
+      .padding({ left: 12, right: 16, top: this.ui.topSafeVp + 12 })
     }
   }
 

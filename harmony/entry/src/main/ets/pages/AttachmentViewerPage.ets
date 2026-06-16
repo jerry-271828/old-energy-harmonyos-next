@@ -1,8 +1,14 @@
 // 附件全屏预览页（NavDestination）：
-//   PDF  → 下载到沙箱 → PdfView（@kit.PDFKit）
+//   PDF / office 文档 → 下载到沙箱 → PdfView（@kit.PDFKit）
 //   视频 → Video 组件直接流式播放网络地址
 //   图片 → Image 全屏查看
 //   其他 → 提示不支持预览
+//
+// office 文档（.doc/.docx/.ppt/.pptx）说明：服务端有转换流水线（attachment 实体的
+// convertStatus/attachmentPageCounts 即其产物），在文件 URL 上直接返回转换后的 PDF 字节。
+// 原 Vue 前端正是把这些类型和 .pdf 一起塞进 /exam/pdf/web/viewer.html（原版 PDF.js）。
+// 故原生端把它们当 pdf 类型、下载同一 URL 即得 PDF，复用 PdfView 链路。
+// （.xls/.xlsx 服务端不转、Vue 也不预览，保持不支持。）
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { common } from '@kit.AbilityKit';
@@ -28,7 +34,8 @@ type ViewerKind = 'pdf' | 'video' | 'image' | 'unsupported';
 
 function classifyExt(ext: string): ViewerKind {
   const e = ext.toLowerCase();
-  if (e === '.pdf') {
+  // .pdf 与服务端会转成 PDF 的 office 文档共用 PdfView 链路（见文件头注释）。
+  if (e === '.pdf' || e === '.doc' || e === '.docx' || e === '.ppt' || e === '.pptx') {
     return 'pdf';
   }
   if (e === '.mp4' || e === '.mov' || e === '.avi' || e === '.mkv' || e === '.ts') {
@@ -92,10 +99,19 @@ export struct AttachmentViewerPage {
     }
   }
 
+  // 预览用缓存文件名强制 .pdf 后缀：office 文档下到的是服务端转换后的 PDF 字节，
+  // 用原扩展名（.docx 等）命名可能让 PdfView 按扩展名拒识，且会与「下载原文件」缓存混淆。
+  private pdfCacheName(): string {
+    const n = this.name;
+    const dot = n.lastIndexOf('.');
+    const base = dot > 0 ? n.substring(0, dot) : n;
+    return base + '.pdf';
+  }
+
   private async loadPdf(): Promise<void> {
     try {
       const ctx = this.getUIContext().getHostContext() as common.UIAbilityContext;
-      const localPath = await Downloader.downloadToCache(ctx, this.url, this.name);
+      const localPath = await Downloader.downloadToCache(ctx, this.url, this.pdfCacheName());
       hilog.info(DOMAIN, TAG, 'pdf downloaded: %{public}s', localPath);
       const result = await this.pdfController.loadDocument(localPath);
       if (result === pdfService.ParseResult.PARSE_SUCCESS) {
