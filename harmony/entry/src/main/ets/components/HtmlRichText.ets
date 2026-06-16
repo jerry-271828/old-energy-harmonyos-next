@@ -242,11 +242,81 @@ function collectSegments(nodes: ParsedNode[], inherited: TextSegment): TextSegme
   return segs;
 }
 
-// parsed block: either a paragraph with text segments + inline images, or a standalone image, or a list
+interface InlineItem {
+  kind: 'text' | 'image';
+  seg: TextSegment;
+  img: ImageInfo;
+}
+
+const DEFAULT_SEG: TextSegment = {
+  text: '', bold: false, italic: false, underline: false,
+  strikethrough: false, color: '', fontSize: 0
+};
+const DEFAULT_IMG: ImageInfo = { src: '', width: 0, height: 0 };
+
+function collectInlineItems(nodes: ParsedNode[], inherited: TextSegment): InlineItem[] {
+  const items: InlineItem[] = [];
+  for (let i = 0; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.text.length > 0) {
+      items.push({ kind: 'text', seg: {
+        text: n.text, bold: inherited.bold, italic: inherited.italic,
+        underline: inherited.underline, strikethrough: inherited.strikethrough,
+        color: inherited.color, fontSize: inherited.fontSize
+      }, img: DEFAULT_IMG });
+      continue;
+    }
+    if (n.tag === 'img' && n.attrs['src']) {
+      const w = parseInt(n.attrs['width'] ?? '0');
+      const h = parseInt(n.attrs['height'] ?? '0');
+      items.push({ kind: 'image', seg: DEFAULT_SEG, img: {
+        src: ApiClient.assetUrl(n.attrs['src']),
+        width: isNaN(w) || w <= 0 ? 0 : w,
+        height: isNaN(h) || h <= 0 ? 0 : h
+      }});
+      continue;
+    }
+    if (n.tag === 'br') {
+      items.push({ kind: 'text', seg: {
+        text: '\n', bold: inherited.bold, italic: inherited.italic,
+        underline: inherited.underline, strikethrough: inherited.strikethrough,
+        color: inherited.color, fontSize: inherited.fontSize
+      }, img: DEFAULT_IMG });
+      continue;
+    }
+    const next: TextSegment = {
+      text: '', bold: inherited.bold || n.tag === 'strong' || n.tag === 'b',
+      italic: inherited.italic || n.tag === 'em' || n.tag === 'i',
+      underline: inherited.underline || n.tag === 'u',
+      strikethrough: inherited.strikethrough || n.tag === 's' || n.tag === 'del',
+      color: inherited.color, fontSize: inherited.fontSize
+    };
+    if (n.tag === 'span' && n.attrs['style']) {
+      const c = extractStyleProp(n.attrs['style'], 'color');
+      if (c.length > 0) {
+        next.color = c;
+      }
+      const fs = extractStyleProp(n.attrs['style'], 'font-size');
+      if (fs.length > 0) {
+        const px = parseInt(fs);
+        if (!isNaN(px) && px > 0) {
+          next.fontSize = px;
+        }
+      }
+    }
+    if (n.children.length > 0) {
+      const childItems = collectInlineItems(n.children, next);
+      for (let j = 0; j < childItems.length; j++) {
+        items.push(childItems[j]);
+      }
+    }
+  }
+  return items;
+}
+
 interface ContentParagraph {
   type: 'text' | 'image' | 'list' | 'blockquote';
-  segments: TextSegment[];
-  images: ImageInfo[];
+  inlines: InlineItem[];
   headingLevel: number;
   listItems: string[];
   ordered: boolean;
@@ -254,10 +324,6 @@ interface ContentParagraph {
 
 function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
   const paras: ContentParagraph[] = [];
-  const defaultSeg: TextSegment = {
-    text: '', bold: false, italic: false, underline: false,
-    strikethrough: false, color: '', fontSize: 0
-  };
 
   for (let i = 0; i < nodes.length; i++) {
     const n = nodes[i];
@@ -265,12 +331,12 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
     // plain text at top level
     if (n.tag === '' && n.text.trim().length > 0) {
       paras.push({
-        type: 'text', segments: [{
-          text: n.text, bold: defaultSeg.bold, italic: defaultSeg.italic,
-          underline: defaultSeg.underline, strikethrough: defaultSeg.strikethrough,
-          color: defaultSeg.color, fontSize: defaultSeg.fontSize
-        }],
-        images: [], headingLevel: 0, listItems: [], ordered: false
+        type: 'text', inlines: [{ kind: 'text', seg: {
+          text: n.text, bold: false, italic: false,
+          underline: false, strikethrough: false,
+          color: '', fontSize: 0
+        }, img: DEFAULT_IMG }],
+        headingLevel: 0, listItems: [], ordered: false
       });
       continue;
     }
@@ -279,28 +345,50 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
     if (n.tag.length === 2 && n.tag.charAt(0) === 'h') {
       const level = parseInt(n.tag.charAt(1));
       if (!isNaN(level) && level >= 1 && level <= 6) {
-        const segs = collectSegments(n.children, {
-          text: defaultSeg.text, bold: true, italic: defaultSeg.italic,
-          underline: defaultSeg.underline, strikethrough: defaultSeg.strikethrough,
-          color: defaultSeg.color, fontSize: defaultSeg.fontSize
+        const inlines = collectInlineItems(n.children, {
+          text: '', bold: true, italic: false,
+          underline: false, strikethrough: false,
+          color: '', fontSize: 0
         });
         paras.push({
-          type: 'text', segments: segs, images: collectImages(n.children),
+          type: 'text', inlines: inlines,
           headingLevel: level, listItems: [], ordered: false
         });
         continue;
       }
     }
 
-    // paragraph
+    // paragraph — classify as inline text+image or block image
     if (n.tag === 'p' || n.tag === 'div') {
-      const segs = collectSegments(n.children, defaultSeg);
-      const imgs = collectImages(n.children);
-      if (segs.length > 0 || imgs.length > 0) {
+      const inlines = collectInlineItems(n.children, DEFAULT_SEG);
+      if (inlines.length === 0) {
+        continue;
+      }
+      let hasText = false;
+      for (let k = 0; k < inlines.length; k++) {
+        if (inlines[k].kind === 'text' && inlines[k].seg.text.trim().length > 0) {
+          hasText = true;
+          break;
+        }
+      }
+      if (hasText) {
         paras.push({
-          type: 'text', segments: segs, images: imgs,
+          type: 'text', inlines: inlines,
           headingLevel: 0, listItems: [], ordered: false
         });
+      } else {
+        const imageItems: InlineItem[] = [];
+        for (let k = 0; k < inlines.length; k++) {
+          if (inlines[k].kind === 'image') {
+            imageItems.push(inlines[k]);
+          }
+        }
+        if (imageItems.length > 0) {
+          paras.push({
+            type: 'image', inlines: imageItems,
+            headingLevel: 0, listItems: [], ordered: false
+          });
+        }
       }
       continue;
     }
@@ -313,7 +401,7 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
         height: parseInt(n.attrs['height'] ?? '0') || 0
       };
       paras.push({
-        type: 'image', segments: [], images: [info],
+        type: 'image', inlines: [{ kind: 'image', seg: DEFAULT_SEG, img: info }],
         headingLevel: 0, listItems: [], ordered: false
       });
       continue;
@@ -329,7 +417,7 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
         }
       }
       paras.push({
-        type: 'list', segments: [], images: [], headingLevel: 0,
+        type: 'list', inlines: [], headingLevel: 0,
         listItems: items, ordered: n.tag === 'ol'
       });
       continue;
@@ -337,9 +425,9 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
 
     // blockquote
     if (n.tag === 'blockquote') {
-      const segs = collectSegments(n.children, defaultSeg);
+      const inlines = collectInlineItems(n.children, DEFAULT_SEG);
       paras.push({
-        type: 'blockquote', segments: segs, images: [],
+        type: 'blockquote', inlines: inlines,
         headingLevel: 0, listItems: [], ordered: false
       });
       continue;
@@ -347,9 +435,9 @@ function nodesToParagraphs(nodes: ParsedNode[]): ContentParagraph[] {
 
     // inline formatting tags at top level: wrap as paragraph
     if (['strong', 'b', 'em', 'i', 'u', 's', 'del', 'span', 'a', 'sub', 'sup'].indexOf(n.tag) >= 0) {
-      const segs = collectSegments([n], defaultSeg);
+      const inlines = collectInlineItems([n], DEFAULT_SEG);
       paras.push({
-        type: 'text', segments: segs, images: [],
+        type: 'text', inlines: inlines,
         headingLevel: 0, listItems: [], ordered: false
       });
       continue;
@@ -397,28 +485,6 @@ export struct HtmlRichText {
   }
 
   @Builder
-  segmentSpans(segs: TextSegment[]) {
-    Text() {
-      ForEach(segs, (seg: TextSegment, idx: number) => {
-        Span(seg.text)
-          .fontSize(seg.fontSize > 0 ? seg.fontSize : this.baseFontSize)
-          .fontWeight(seg.bold ? FontWeight.Bold : FontWeight.Normal)
-          .fontStyle(seg.italic ? FontStyle.Italic : FontStyle.Normal)
-          .decoration(seg.underline ? {
-            type: TextDecorationType.Underline,
-            color: seg.color.length > 0 ? seg.color : Theme.TEXT
-          } : (seg.strikethrough ? {
-            type: TextDecorationType.LineThrough,
-            color: seg.color.length > 0 ? seg.color : Theme.TEXT_2
-          } : { type: TextDecorationType.None }))
-          .fontColor(seg.color.length > 0 ? seg.color : Theme.TEXT)
-      }, (_seg: TextSegment, idx: number) => `seg_${idx}`)
-    }
-    .width('100%')
-    .lineHeight(this.baseFontSize * 1.7)
-  }
-
-  @Builder
   imageBlock(info: ImageInfo) {
     Image(info.src)
       .width(info.width > 0 ? Math.min(info.width, this.maxImageWidth) : '100%')
@@ -442,37 +508,38 @@ export struct HtmlRichText {
       Column({ space: 8 }) {
         ForEach(this.paras, (p: ContentParagraph, pi: number) => {
           if (p.type === 'text') {
-            Column({ space: 4 }) {
-              if (p.segments.length > 0) {
-                Text() {
-                  ForEach(p.segments, (seg: TextSegment, si: number) => {
-                    Span(seg.text)
+            if (p.inlines.length > 0) {
+              Text() {
+                ForEach(p.inlines, (item: InlineItem, idx: number) => {
+                  if (item.kind === 'text') {
+                    Span(item.seg.text)
                       .fontSize(p.headingLevel > 0
                         ? (p.headingLevel === 1 ? 22 : (p.headingLevel === 2 ? 19 : 17))
-                        : (seg.fontSize > 0 ? seg.fontSize : this.baseFontSize))
-                      .fontWeight(seg.bold || p.headingLevel > 0 ? FontWeight.Bold : FontWeight.Normal)
-                      .fontStyle(seg.italic ? FontStyle.Italic : FontStyle.Normal)
-                      .decoration(seg.underline ? {
+                        : (item.seg.fontSize > 0 ? item.seg.fontSize : this.baseFontSize))
+                      .fontWeight(item.seg.bold || p.headingLevel > 0 ? FontWeight.Bold : FontWeight.Normal)
+                      .fontStyle(item.seg.italic ? FontStyle.Italic : FontStyle.Normal)
+                      .decoration(item.seg.underline ? {
                         type: TextDecorationType.Underline,
-                        color: seg.color.length > 0 ? seg.color : Theme.TEXT
-                      } : (seg.strikethrough ? {
+                        color: item.seg.color.length > 0 ? item.seg.color : Theme.TEXT
+                      } : (item.seg.strikethrough ? {
                         type: TextDecorationType.LineThrough,
-                        color: seg.color.length > 0 ? seg.color : Theme.TEXT_2
+                        color: item.seg.color.length > 0 ? item.seg.color : Theme.TEXT_2
                       } : { type: TextDecorationType.None }))
-                      .fontColor(seg.color.length > 0 ? seg.color : Theme.TEXT)
-                  }, (_s: TextSegment, si: number) => `p${pi}_s${si}`)
-                }
-                .width('100%')
-                .lineHeight(p.headingLevel > 0 ? 32 : this.baseFontSize * 1.7)
+                      .fontColor(item.seg.color.length > 0 ? item.seg.color : Theme.TEXT)
+                  } else {
+                    ImageSpan(item.img.src)
+                      .objectFit(ImageFit.Contain)
+                      .verticalAlign(ImageSpanAlignment.CENTER)
+                  }
+                }, (_item: InlineItem, idx: number) => `p${pi}_i${idx}`)
               }
-              ForEach(p.images, (img: ImageInfo, ii: number) => {
-                this.imageBlock(img)
-              }, (_img: ImageInfo, ii: number) => `p${pi}_img${ii}`)
+              .width('100%')
+              .lineHeight(p.headingLevel > 0 ? 32 : this.baseFontSize * 1.7)
             }
           } else if (p.type === 'image') {
-            ForEach(p.images, (img: ImageInfo, ii: number) => {
-              this.imageBlock(img)
-            }, (_img: ImageInfo, ii: number) => `img_${pi}_${ii}`)
+            ForEach(p.inlines, (item: InlineItem, ii: number) => {
+              this.imageBlock(item.img)
+            }, (_item: InlineItem, ii: number) => `img_${pi}_${ii}`)
           } else if (p.type === 'list') {
             Column({ space: 4 }) {
               ForEach(p.listItems, (item: string, li: number) => {
@@ -500,9 +567,30 @@ export struct HtmlRichText {
                 .backgroundColor(Theme.PRIMARY_SOFT)
                 .borderRadius(2)
               Column() {
-                if (p.segments.length > 0) {
-                  this.segmentSpans(p.segments)
+                Text() {
+                  ForEach(p.inlines, (item: InlineItem, idx: number) => {
+                    if (item.kind === 'text') {
+                      Span(item.seg.text)
+                        .fontSize(item.seg.fontSize > 0 ? item.seg.fontSize : this.baseFontSize)
+                        .fontWeight(item.seg.bold ? FontWeight.Bold : FontWeight.Normal)
+                        .fontStyle(item.seg.italic ? FontStyle.Italic : FontStyle.Normal)
+                        .decoration(item.seg.underline ? {
+                          type: TextDecorationType.Underline,
+                          color: item.seg.color.length > 0 ? item.seg.color : Theme.TEXT
+                        } : (item.seg.strikethrough ? {
+                          type: TextDecorationType.LineThrough,
+                          color: item.seg.color.length > 0 ? item.seg.color : Theme.TEXT_2
+                        } : { type: TextDecorationType.None }))
+                        .fontColor(item.seg.color.length > 0 ? item.seg.color : Theme.TEXT)
+                    } else {
+                      ImageSpan(item.img.src)
+                        .objectFit(ImageFit.Contain)
+                        .verticalAlign(ImageSpanAlignment.CENTER)
+                    }
+                  }, (_item: InlineItem, idx: number) => `bq${pi}_i${idx}`)
                 }
+                .width('100%')
+                .lineHeight(this.baseFontSize * 1.7)
               }
               .layoutWeight(1)
               .padding({ left: 12 })
