@@ -20,7 +20,7 @@ import { PhotoUploader } from '../utils/PhotoUploader';
 import { QuickSubmitSheet, QuickSubmitItem, QuickSubmitFill } from '../components/QuickSubmitSheet';
 import { Downloader } from '../utils/Downloader';
 import { AttachmentViewerParam } from './AttachmentViewerPage';
-import { HandwritePanel } from '../components/HandwritePanel';
+import { HandwritePanel, HandwriteQuestionItem } from '../components/HandwritePanel';
 
 const DOMAIN = 0x0002;
 const TAG = 'CourseDetailPage';
@@ -56,6 +56,7 @@ export struct CourseDetailPage {
   @Local private showAnnotation: boolean = false;
   @Local private handwriteQuestionId: number = 0;  // >0 时显示手写作答面板
   @Local private handwriteStem: string = '';
+  @Local private annotationQuestionItems: HandwriteQuestionItem[] = [];
   @Local private showQuickSubmit: boolean = false;   // 快捷提交弹窗
   @Local private quickSubmitting: boolean = false;
   @Local private quickItems: QuickSubmitItem[] = [];
@@ -106,6 +107,7 @@ export struct CourseDetailPage {
       this.blocks = results[0] as CourseBlock[];
       this.answers = results[1] as AnswerRecord[];
       this.entityInfo = results[2] as CourseEntityInfo;
+      this.annotationQuestionItems = this.buildAnnotationQuestionItems();
 
       // build title anchors from text blocks with titleLevel > 0
       const anchors: TitleAnchor[] = [];
@@ -324,6 +326,57 @@ export struct CourseDetailPage {
   private openQuickSubmit(): void {
     this.quickItems = this.buildQuickSubmitItems();
     this.showQuickSubmit = true;
+  }
+
+  private stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private questionLabel(q: QuestionContent, prefix: string): string {
+    const text = this.stripHtml(q.questionStem);
+    const summary = text.length > 36 ? text.substring(0, 36) + '...' : text;
+    return summary.length > 0 ? `${prefix} ${summary}` : prefix;
+  }
+
+  private buildAnnotationQuestionItems(): HandwriteQuestionItem[] {
+    const items: HandwriteQuestionItem[] = [];
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.contentType !== 2 || b.question === null) {
+        continue;
+      }
+      const q = b.question;
+      if (q.childList !== null && q.childList.length > 0) {
+        for (let c = 0; c < q.childList.length; c++) {
+          const child = q.childList[c];
+          const prefix = `${q.questionNumber}(${c + 1})`;
+          items.push({
+            id: child.id,
+            label: this.questionLabel(child, prefix),
+            stem: q.questionStem + `<p><strong>${prefix}</strong></p>` + child.questionStem
+          });
+        }
+      } else {
+        items.push({
+          id: q.id,
+          label: this.questionLabel(q, q.questionNumber),
+          stem: q.questionStem
+        });
+      }
+    }
+    return items;
+  }
+
+  private annotationPersistKey(): string {
+    return `${this.kind}_${this.entityId}`;
   }
 
   // 快捷提交：把各段答案保存到对应题后，触发整卷提交/补交
@@ -1214,6 +1267,8 @@ export struct CourseDetailPage {
         if (this.showAnnotation) {
           HandwritePanel({
             mode: 'annotation',
+            persistKey: this.annotationPersistKey(),
+            questionItems: this.annotationQuestionItems,
             onClose: () => {
               this.showAnnotation = false;
             }
