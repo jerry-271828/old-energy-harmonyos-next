@@ -34,7 +34,12 @@ interface AnnotationMeta {
   questionId: number;
   label: string;
   stem: string;
+  previewHeight?: number;
 }
+
+const QUESTION_PREVIEW_MIN_HEIGHT = 92;
+const QUESTION_PREVIEW_MAX_HEIGHT = 420;
+const QUESTION_PREVIEW_DEFAULT_HEIGHT = 180;
 
 @ComponentV2
 export struct HandwritePanel {
@@ -53,6 +58,8 @@ export struct HandwritePanel {
   @Local private importedQuestionId: number = 0;
   @Local private importedQuestionLabel: string = '';
   @Local private importedQuestionStem: string = '';
+  @Local private questionPreviewHeight: number = QUESTION_PREVIEW_DEFAULT_HEIGHT;
+  private questionPreviewDragStart: number = QUESTION_PREVIEW_DEFAULT_HEIGHT;
 
   // 手写套件功能类实例：画布初始化、加载/保存、取笔迹范围与缩略图都经它。
   private controller: HandwriteController = new HandwriteController();
@@ -121,6 +128,9 @@ export struct HandwritePanel {
       this.importedQuestionId = meta.questionId;
       this.importedQuestionLabel = meta.label ?? '';
       this.importedQuestionStem = meta.stem ?? '';
+      if (typeof meta.previewHeight === 'number') {
+        this.questionPreviewHeight = this.clampQuestionPreviewHeight(meta.previewHeight);
+      }
     } catch (e) {
       hilog.warn(DOMAIN, TAG, 'load annotation meta failed: %{public}s',
         (e as Error).message);
@@ -134,9 +144,14 @@ export struct HandwritePanel {
     const meta: AnnotationMeta = {
       questionId: this.importedQuestionId,
       label: this.importedQuestionLabel,
-      stem: this.importedQuestionStem
+      stem: this.importedQuestionStem,
+      previewHeight: this.questionPreviewHeight
     };
     GmStorage.putAsync(this.metaKey(), JSON.stringify(meta));
+  }
+
+  private clampQuestionPreviewHeight(value: number): number {
+    return Math.max(QUESTION_PREVIEW_MIN_HEIGHT, Math.min(QUESTION_PREVIEW_MAX_HEIGHT, value));
   }
 
   private onCanvasInit(): void {
@@ -180,6 +195,14 @@ export struct HandwritePanel {
     this.importedQuestionId = item.id;
     this.importedQuestionLabel = item.label;
     this.importedQuestionStem = item.stem;
+    this.showQuestionPicker = false;
+    this.saveAnnotationMeta();
+  }
+
+  private clearImportQuestion(): void {
+    this.importedQuestionId = 0;
+    this.importedQuestionLabel = '';
+    this.importedQuestionStem = '';
     this.showQuestionPicker = false;
     this.saveAnnotationMeta();
   }
@@ -320,21 +343,67 @@ export struct HandwritePanel {
             .layoutWeight(1)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+          Row({ space: 4 }) {
+            SymbolGlyph($r('sys.symbol.xmark_circle'))
+              .fontSize(15)
+              .fontColor([Theme.TEXT_2])
+            Text('取消导入')
+              .fontSize(Theme.F_MINI)
+              .fontColor(Theme.TEXT_2)
+          }
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .backgroundColor('#0D000000')
+          .borderRadius(Theme.R_XL)
+          .onClick(() => {
+            this.clearImportQuestion();
+          })
         }
         .width('100%')
 
-        HtmlRichText({
-          html: this.importedQuestionStem,
-          baseFontSize: Theme.F_SUB,
-          maxImageWidth: 520
-        })
+        Scroll() {
+          HtmlRichText({
+            html: this.importedQuestionStem,
+            baseFontSize: Theme.F_SUB,
+            maxImageWidth: 520
+          })
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+
+        Row() {
+          Column()
+            .width(46)
+            .height(4)
+            .borderRadius(2)
+            .backgroundColor('#33000000')
+        }
+        .width('100%')
+        .height(18)
+        .justifyContent(FlexAlign.Center)
+        .gesture(
+          PanGesture()
+            .onActionStart(() => {
+              this.questionPreviewDragStart = this.questionPreviewHeight;
+            })
+            .onActionUpdate((evt: GestureEvent) => {
+              this.questionPreviewHeight = this.clampQuestionPreviewHeight(
+                this.questionPreviewDragStart + evt.offsetY);
+            })
+            .onActionEnd(() => {
+              this.saveAnnotationMeta();
+            })
+        )
       }
       .width('100%')
+      .height(this.questionPreviewHeight)
       .padding(14)
       .backgroundColor('#F8FFFFFF')
       .borderRadius(Theme.R_MD)
       .border({ width: 1, color: Theme.DIVIDER })
       .margin({ left: 14, right: 14, top: 14 })
+      .clip(true)
     }
   }
 
@@ -365,6 +434,25 @@ export struct HandwritePanel {
         }
         .width('100%')
         .padding({ bottom: 4 })
+
+        if (this.importedQuestionStem.length > 0) {
+          Row({ space: 10 }) {
+            SymbolGlyph($r('sys.symbol.xmark_circle'))
+              .fontSize(18)
+              .fontColor([Theme.TEXT_2])
+            Text('不导入题干，仅演算或记笔记')
+              .fontSize(Theme.F_SUB)
+              .fontColor(Theme.TEXT)
+              .layoutWeight(1)
+          }
+          .width('100%')
+          .padding(12)
+          .backgroundColor('#F7F8FA')
+          .borderRadius(Theme.R_MD)
+          .onClick(() => {
+            this.clearImportQuestion();
+          })
+        }
 
         List({ space: 6 }) {
           ForEach(this.questionItems, (item: HandwriteQuestionItem) => {
