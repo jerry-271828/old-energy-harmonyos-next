@@ -113,7 +113,7 @@ export struct CoursePage {
   }
 
   private openCourseDetail(item: CourseListItem): void {
-    const param: CourseDetailParam = { id: item.id, createTime: item.createTime };
+    const param: CourseDetailParam = { id: item.id, createTime: item.createTime, kind: 'course' };
     Nav.push('courseDetail', param);
   }
 

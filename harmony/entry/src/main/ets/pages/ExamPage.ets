@@ -107,7 +107,7 @@ export struct ExamPage {
   }
 
   private openPaperDetail(item: CourseListItem): void {
-    const param: CourseDetailParam = { id: item.id, createTime: item.createTime };
+    const param: CourseDetailParam = { id: item.id, createTime: item.createTime, kind: 'paper' };
     Nav.push('courseDetail', param);
   }
 

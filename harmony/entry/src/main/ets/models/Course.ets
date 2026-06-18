@@ -31,6 +31,7 @@ export interface CourseListItem {
 export interface CourseDetailParam {
   id: number;
   createTime: string;
+  kind?: 'course' | 'paper';
 }
 
 // entity/{id}：学生与这份课件的关联信息（用时/得分率/提交窗口）

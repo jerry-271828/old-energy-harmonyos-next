@@ -72,7 +72,7 @@ export struct CourseDetailPage {
   private countdownTimer: number = -1;
 
   aboutToAppear(): void {
-    // param 为 CourseDetailParam {id, createTime}；兼容旧版仅传 number/string
+    // param 为 CourseDetailParam {id, createTime, kind}；兼容旧版仅传 number/string
     const param = Nav.stack.getParamByName('courseDetail') as Object[];
     if (param.length > 0) {
       const raw: Object = param[param.length - 1];
@@ -84,6 +84,7 @@ export struct CourseDetailPage {
         const p = raw as CourseDetailParam;
         this.entityId = p.id;
         this.createTime = p.createTime ?? '';
+        this.kind = p.kind === 'paper' ? 'paper' : 'course';
       }
     }
     if (this.entityId > 0) {
@@ -1049,7 +1050,7 @@ export struct CourseDetailPage {
                 .onClick(() => {
                   Nav.pop();
                 })
-              Text('课件详情')
+              Text(this.kind === 'paper' ? '考试详情' : '课件详情')
                 .fontSize(Theme.F_TITLE)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Theme.TEXT)
