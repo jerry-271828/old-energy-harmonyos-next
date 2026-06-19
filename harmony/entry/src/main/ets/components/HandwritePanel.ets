@@ -404,6 +404,7 @@ export struct HandwritePanel {
       .border({ width: 1, color: Theme.DIVIDER })
       .margin({ left: 14, right: 14, top: 14 })
       .clip(true)
+      .zIndex(2)
     }
   }
 
@@ -530,8 +531,6 @@ export struct HandwritePanel {
 
         // 手写画布：官方套件组件自带画布 + 工具栏。
         Stack({ alignContent: Alignment.TopStart }) {
-          this.importedQuestionLayer()
-
           if (canIUse('SystemCapability.Stylus.Handwrite')) {
             HandwriteComponent({
               handwriteController: this.controller,
@@ -549,6 +548,8 @@ export struct HandwritePanel {
           } else {
             this.unsupported()
           }
+
+          this.importedQuestionLayer()
         }
         .layoutWeight(1)
         .width('100%')
