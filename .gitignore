@@ -2,3 +2,9 @@
 .playwright-cli/
 review.txt
 commandline-tools-*.zip
+
+# HarmonyOS build artifacts & local config
+harmony/.bitfun/
+harmony/entry/build/
+harmony/entry/oh_modules/
+harmony/build-profile.json5
