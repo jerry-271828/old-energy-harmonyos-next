@@ -102,22 +102,19 @@ jobs:
           shopt -s globstar nullglob
           haps=(harmony/entry/build/default/outputs/**/*.hap)
           if [ ${#haps[@]} -eq 0 ]; then echo "no .hap found"; exit 1; fi
-
           tag="${GITHUB_REF#refs/tags/}"
           ver=$(grep -oP '"versionName"\s*:\s*"\K[^"]+' harmony/AppScope/app.json5)
-
           assets=()
           for h in "${haps[@]}"; do
             dst="$RUNNER_TEMP/$(basename "$h" .hap)-${ver}.hap"
             cp "$h" "$dst"
             assets+=("$dst")
           done
-
+          printf '正式版 **%s**（versionName %s）。\n\n⚠️ 未签名 HAP，装机需本地签名或在 DevEco Studio 中重新签名后安装。' \
+            "$tag" "$ver" > "$RUNNER_TEMP/notes.md"
           gh release create "$tag" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "${tag} · 爆改新能源 HarmonyOS 原生版 ${ver}" \
             --latest \
-            --notes "正式版 **${tag}**（versionName ${ver}）。
-
-⚠️ 未签名 HAP，装机需本地签名或在 DevEco Studio 中重新签名后安装。"
+            --notes-file "$RUNNER_TEMP/notes.md"
