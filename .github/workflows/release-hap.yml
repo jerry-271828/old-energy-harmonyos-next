@@ -1,12 +1,9 @@
-name: Build HAP (nightly)
+name: Release HAP (stable)
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'harmony/**'
-      - '.github/workflows/build-hap.yml'
-  workflow_dispatch:
+    tags:
+      - 'v*'
 
 env:
   CLT_BASE_URL: https://github.com/jerry-271828/harmonyos-commandline-tools/releases/download/v26.0.0.461
@@ -16,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +46,6 @@ jobs:
           ohpm config set registry https://ohpm.openharmony.cn/ohpm/
           ohpm install --all
 
-      # build-profile.json5 在 .gitignore 中（含本地签名配置，不入库）。
-      # CI 直接生成一份干净版本，compileSdkVersion 对齐工具包内嵌的 API 26。
       - name: Generate build-profile.json5 for CI
         working-directory: harmony
         run: |
@@ -99,7 +94,7 @@ jobs:
           path: harmony/entry/build/default/outputs/**/*.hap
           if-no-files-found: error
 
-      - name: Publish nightly release
+      - name: Publish stable release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -108,20 +103,21 @@ jobs:
           haps=(harmony/entry/build/default/outputs/**/*.hap)
           if [ ${#haps[@]} -eq 0 ]; then echo "no .hap found"; exit 1; fi
 
+          tag="${GITHUB_REF#refs/tags/}"
           ver=$(grep -oP '"versionName"\s*:\s*"\K[^"]+' harmony/AppScope/app.json5)
-          sha7=${GITHUB_SHA::7}
 
           assets=()
           for h in "${haps[@]}"; do
-            dst="$RUNNER_TEMP/$(basename "$h" .hap)-${ver}-${sha7}.hap"
+            dst="$RUNNER_TEMP/$(basename "$h" .hap)-${ver}.hap"
             cp "$h" "$dst"
             assets+=("$dst")
           done
 
-          gh release delete nightly --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
-          gh release create nightly "${assets[@]}" \
+          gh release create "$tag" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Nightly ${ver} (${sha7})" \
-            --prerelease \
-            --notes "自动构建的**未签名** HAP（versionName ${ver}，commit \`${sha7}\`）。装机需本地签名或在 DevEco 中重新签名。"
+            --title "${tag} · 爆改新能源 HarmonyOS 原生版 ${ver}" \
+            --latest \
+            --notes "正式版 **${tag}**（versionName ${ver}）。
+
+⚠️ 未签名 HAP，装机需本地签名或在 DevEco Studio 中重新签名后安装。"
