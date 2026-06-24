@@ -1,5 +1,4 @@
-// 设置页：个人信息卡 + 油猴设置项原生化（键沿用 bdfz_enhancer_settings_v3）
-// + 网页版回退入口 + 退出登录。
+// 设置页：个人信息卡 + 设置项 + 网页版回退入口 + 退出登录。
 
 import { Theme } from '../theme/Theme';
 import { SessionStore } from '../store/SessionStore';
@@ -48,6 +47,7 @@ export struct SettingsPage {
   settings: SettingsStore = SettingsStore.instance;
   ui: UiStore = UiStore.instance;
   @Local confirmLogout: boolean = false;
+  @Local private displayLg: number = SettingsStore.instance.lgIntensity;
 
   @Builder
   userCard() {
@@ -102,18 +102,39 @@ export struct SettingsPage {
       .alignItems(HorizontalAlign.Start)
 
       Row({ space: 0 }) {
-        ForEach([1, 2, 3], (lv: number) => {
-          Text(lv === 1 ? '轻' : (lv === 2 ? '中' : '满'))
-            .fontSize(Theme.F_SUB)
-            .fontColor(this.settings.lgIntensity === lv ? Color.White : Theme.TEXT_2)
-            .padding({ left: 14, right: 14, top: 6, bottom: 6 })
-            .backgroundColor(this.settings.lgIntensity === lv ? Theme.PRIMARY : Color.Transparent)
-            .borderRadius(Theme.R_XL)
-            .onClick(() => {
-              this.settings.lgIntensity = lv;
-              this.settings.save();
-            })
-        }, (lv: number) => lv.toString())
+        Text('轻')
+          .fontSize(Theme.F_SUB)
+          .fontColor(this.displayLg === 1 ? Color.White : Theme.TEXT_2)
+          .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+          .backgroundColor(this.displayLg === 1 ? Theme.PRIMARY : Color.Transparent)
+          .borderRadius(Theme.R_XL)
+          .onClick(() => {
+            this.displayLg = 1;
+            this.settings.lgIntensity = 1;
+            this.settings.save();
+          })
+        Text('中')
+          .fontSize(Theme.F_SUB)
+          .fontColor(this.displayLg === 2 ? Color.White : Theme.TEXT_2)
+          .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+          .backgroundColor(this.displayLg === 2 ? Theme.PRIMARY : Color.Transparent)
+          .borderRadius(Theme.R_XL)
+          .onClick(() => {
+            this.displayLg = 2;
+            this.settings.lgIntensity = 2;
+            this.settings.save();
+          })
+        Text('满')
+          .fontSize(Theme.F_SUB)
+          .fontColor(this.displayLg === 3 ? Color.White : Theme.TEXT_2)
+          .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+          .backgroundColor(this.displayLg === 3 ? Theme.PRIMARY : Color.Transparent)
+          .borderRadius(Theme.R_XL)
+          .onClick(() => {
+            this.displayLg = 3;
+            this.settings.lgIntensity = 3;
+            this.settings.save();
+          })
       }
       .backgroundColor('#F0F2F5')
       .borderRadius(Theme.R_XL)
@@ -160,24 +181,6 @@ export struct SettingsPage {
             })
             Divider().color(Theme.DIVIDER)
             SettingRow({
-              title: '自动展开答题区', desc: '方便快速录入答案',
-              value: this.settings.autoExpandAnswerArea,
-              onToggle: (v: boolean) => {
-                this.settings.autoExpandAnswerArea = v;
-                this.settings.save();
-              }
-            })
-            Divider().color(Theme.DIVIDER)
-            SettingRow({
-              title: '开启下载权限', desc: '课件 PDF 显示下载按钮，甭外传资料！',
-              value: this.settings.forceShowPDFButtons,
-              onToggle: (v: boolean) => {
-                this.settings.forceShowPDFButtons = v;
-                this.settings.save();
-              }
-            })
-            Divider().color(Theme.DIVIDER)
-            SettingRow({
               title: '图片加速上传', desc: '拍照作答跳过增强和剪裁',
               value: this.settings.enableMockEnhance,
               onToggle: (v: boolean) => {
@@ -191,24 +194,6 @@ export struct SettingsPage {
               value: this.settings.enableImageInvert,
               onToggle: (v: boolean) => {
                 this.settings.enableImageInvert = v;
-                this.settings.save();
-              }
-            })
-            Divider().color(Theme.DIVIDER)
-            SettingRow({
-              title: '手写优化', desc: '批注/手写时防止页面滚动',
-              value: this.settings.enableHandwritingFix,
-              onToggle: (v: boolean) => {
-                this.settings.enableHandwritingFix = v;
-                this.settings.save();
-              }
-            })
-            Divider().color(Theme.DIVIDER)
-            SettingRow({
-              title: '简洁模式', desc: '收起次要工具按钮',
-              value: this.settings.enableSimpleMode,
-              onToggle: (v: boolean) => {
-                this.settings.enableSimpleMode = v;
                 this.settings.save();
               }
             })

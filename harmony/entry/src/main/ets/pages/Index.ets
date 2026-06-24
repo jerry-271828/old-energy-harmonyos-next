@@ -11,6 +11,7 @@ import { SymbolGlyphModifier } from '@kit.ArkUI';
 import { Theme } from '../theme/Theme';
 import { Nav } from '../utils/Nav';
 import { SessionStore } from '../store/SessionStore';
+import { SettingsStore } from '../store/SettingsStore';
 import { UiStore } from '../store/UiStore';
 import { LoginPage } from './LoginPage';
 import { CoursePage } from './CoursePage';
@@ -42,7 +43,26 @@ const TABS: TabItem[] = [
 struct Index {
   private tabsController: HdsTabsController = new HdsTabsController();
   session: SessionStore = SessionStore.instance;
+  settings: SettingsStore = SettingsStore.instance;
   ui: UiStore = UiStore.instance;
+  @Local private displayLg: number = SettingsStore.instance.lgIntensity;
+  private lgTick: number = -1;
+
+  aboutToAppear(): void {
+    this.lgTick = setInterval(() => {
+      const lv = this.settings.lgIntensity;
+      if (lv !== this.displayLg) {
+        this.displayLg = lv;
+      }
+    }, 500) as number;
+  }
+
+  aboutToDisappear(): void {
+    if (this.lgTick >= 0) {
+      clearInterval(this.lgTick);
+      this.lgTick = -1;
+    }
+  }
 
   @Builder
   tabContentBody(index: number) {
@@ -79,7 +99,11 @@ struct Index {
         barBottomMargin: 28,
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialLevel: this.displayLg >= 3
+            ? hdsMaterial.MaterialLevel.EXQUISITE
+            : (this.displayLg >= 2
+              ? hdsMaterial.MaterialLevel.GENTLE
+              : hdsMaterial.MaterialLevel.SMOOTH)
         }
       })
 
