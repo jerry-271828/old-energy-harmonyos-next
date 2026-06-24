@@ -1,4 +1,4 @@
-// 会话仓库：token + 用户信息 + 记住密码/自动登录 + 静默重登（会话守护）。
+// 会话仓库：userId + 用户信息 + 记住密码/自动登录 + 静默重登（会话守护）。
 // 持久化走 GmStorage（preferences 'gm_storage'，与旧 WebView 壳同仓）。
 
 import { common } from '@kit.AbilityKit';
@@ -12,6 +12,7 @@ import { UserInfo } from '../models/User';
 const DOMAIN = 0x0002;
 const TAG = 'SessionStore';
 
+const K_USER_ID = 'bxny_user_id';
 const K_TOKEN = 'bxny_token';
 const K_ACCOUNT = 'bxny_account';
 const K_PWD = 'bxny_pwd';
@@ -40,9 +41,16 @@ export class SessionStore {
     this.account = GmStorage.getSync(K_ACCOUNT);
     this.pwd = GmStorage.getSync(K_PWD);
     this.remember = GmStorage.getSync(K_REMEMBER) !== '0';
-    const token = GmStorage.getSync(K_TOKEN);
-    if (token.length > 0) {
-      ApiClient.setToken(token);
+    const savedUserId = GmStorage.getSync(K_USER_ID);
+    if (savedUserId.length > 0) {
+      const uid = parseInt(savedUserId);
+      if (uid > 0) {
+        ApiClient.setUserId(uid);
+      }
+    }
+    const savedToken = GmStorage.getSync(K_TOKEN);
+    if (savedToken.length > 0) {
+      ApiClient.setToken(savedToken);
     }
     const userJson = GmStorage.getSync(K_USER);
     if (userJson.length > 0) {
@@ -67,9 +75,9 @@ export class SessionStore {
       return;
     }
     const hasCreds = this.account.length > 0 && this.pwd.length > 0;
-    // 有缓存会话（init 已把 token 装入 ApiClient、user 反序列化）：乐观进入，登录刷新丢到
-    // 后台，绝不阻塞首屏——这是开屏卡死的直接根因。token 失效由静默重登在首个 API 401 兜底。
-    if (ApiClient.hasToken() && this.user !== null) {
+    // 有缓存会话（init 已把 userId 装入 ApiClient、user 反序列化）：乐观进入，登录刷新丢到
+    // 后台，绝不阻塞首屏——这是开屏卡死的直接根因。auth 失效由静默重登在首个 API 401 兜底。
+    if (ApiClient.hasAuth() && this.user !== null) {
       this.loggedIn = true;
       this.booting = false;
       if (hasCreds) {
@@ -91,7 +99,7 @@ export class SessionStore {
     this.booting = false;
   }
 
-  // 后台静默刷新登录态：成功换到新 token；失败保留缓存会话（由静默重登在后续请求兜底）。
+  // 后台静默刷新登录态：成功刷新 userId；失败保留缓存会话（由静默重登在后续请求兜底）。
   private refreshLoginInBackground(): void {
     this.signin(this.account, this.pwd, this.remember)
       .then(() => {
@@ -126,6 +134,7 @@ export class SessionStore {
     this.account = account;
     this.pwd = pwd;
     this.remember = remember;
+    GmStorage.putAsync(K_USER_ID, String(ApiClient.getUserId()));
     GmStorage.putAsync(K_TOKEN, ApiClient.getToken());
     GmStorage.putAsync(K_USER, JSON.stringify(user));
     if (remember) {
@@ -147,7 +156,8 @@ export class SessionStore {
     }
     try {
       await AuthApi.signin(this.account, this.pwd);
-      GmStorage.putAsync(K_TOKEN, ApiClient.getToken());
+      GmStorage.putAsync(K_USER_ID, String(ApiClient.getUserId()));
+    GmStorage.putAsync(K_TOKEN, ApiClient.getToken());
       hilog.info(DOMAIN, TAG, 'silent relogin ok');
       return true;
     } catch (e) {
@@ -166,6 +176,7 @@ export class SessionStore {
     }
     this.loggedIn = false;
     this.user = null;
+    GmStorage.putAsync(K_USER_ID, '');
     GmStorage.putAsync(K_TOKEN, '');
   }
 }

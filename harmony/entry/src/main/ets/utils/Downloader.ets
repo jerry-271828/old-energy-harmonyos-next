@@ -6,7 +6,7 @@
 // 为什么不用 request.downloadFile：那是独立的系统下载代理进程，在本服务器
 // （非标 :5002 HTTPS）上会以 ERROR_UNKNOWN(code 8) 失败（连接/TLS 握手超时）；
 // 而 ApiClient 用的同一套 NetworkKit http 栈对该 host 是通的（登录/接口全部成功）。
-// 故这里复用 http 栈，带上同样的 token cookie，绕开下载代理的差异。改回 downloadFile 会复发 code 8。
+// 故这里复用 http 栈，带上同样的 X-Custom-Auth 头，绕开下载代理的差异。改回 downloadFile 会复发 code 8。
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -54,7 +54,8 @@ export class Downloader {
     }
 
     const headerMap: Record<string, string> = { 'Accept': '*/*' };
-    if (ApiClient.hasToken()) {
+    if (ApiClient.hasAuth()) {
+      headerMap['X-Custom-Auth'] = ApiClient.buildAuthHeader();
       headerMap['Cookie'] = 'token=' + ApiClient.getToken();
     }
 

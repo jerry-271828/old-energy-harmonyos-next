@@ -325,7 +325,7 @@ export struct AttachmentViewerPage {
     }
   }
 
-  // Video 组件无法设置自定义 HTTP header；若资源需 auth cookie，直接流式会 403。
+  // Video 组件无法设置自定义 HTTP header；若资源需 auth，直接流式会 403。
   // 策略：先尝试网络流式播放，onError 回退为下载到沙箱后本地播放。
   private async fallbackVideoToLocal(): Promise<void> {
     hilog.info(DOMAIN, TAG, 'video streaming failed, fallback to local download');

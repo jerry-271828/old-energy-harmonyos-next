@@ -12,12 +12,13 @@ export interface QwcRecord {
 }
 
 export class QwcApi {
-  static async get(courseId: number, questionId: number): Promise<QwcRecord | null> {
+  static async list(courseId: number): Promise<QwcRecord[]> {
     try {
-      return await ApiClient.get<QwcRecord>(
-        `/api/qwc/get?courseId=${courseId}&questionId=${questionId}`);
+      return await ApiClient.post<QwcRecord[]>(
+        '/api/qwc/list',
+        { studentId: ApiClient.getUserId(), courseId: courseId } as object);
     } catch (e) {
-      return null;
+      return [];
     }
   }
 

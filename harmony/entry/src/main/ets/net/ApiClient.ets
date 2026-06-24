@@ -1,6 +1,6 @@
 // 统一 HTTP 客户端：@ohos.net.http 封装。
 //   - BASE = https://bdfz.xnykcxt.com:5002/exam
-//   - 认证：登录后服务端 Set-Cookie: token=<hex>，之后所有请求带 Cookie 头
+//   - 认证：X-Custom-Auth 头，DES/ECB/PKCS7 加密 {domain,userId,version,timestamp}
 //   - 响应统一解包 ApiResp{code,message,extra}，code!==0 抛 ApiError
 //   - 会话守护：HTTP 401/403 或业务码提示未登录时，回调 reloginProvider
 //     用记住的凭据静默重登一次再重试（对应油猴脚本"会话守护/自动登录"的原生化）
@@ -9,6 +9,7 @@
 import { http } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { desEcbEncrypt } from '../utils/Des';
 import { ApiResp, ApiError } from '../models/ApiTypes';
 
 const DOMAIN = 0x0002;
@@ -23,10 +24,21 @@ export interface FullResp<T> {
 export class ApiClient {
   static readonly ORIGIN: string = 'https://bdfz.xnykcxt.com:5002';
   static readonly BASE: string = ApiClient.ORIGIN + '/exam';
+  private static readonly AUTH_DOMAIN: string = 'bdfz.xnykcxt.com';
+  private static readonly AUTH_VERSION: string = '4.0.1';
+  private static readonly DES_KEY_STR: string = '348ebfa6d1f9708310cb8a7f88367bc5';
 
+  private static userId: number = 0;
   private static token: string = '';
-  // 由 SessionStore 注册：静默重登。返回 true 表示拿到了新 token，可重试原请求。
   static reloginProvider: (() => Promise<boolean>) | null = null;
+
+  static setUserId(id: number): void {
+    ApiClient.userId = id;
+  }
+
+  static getUserId(): number {
+    return ApiClient.userId;
+  }
 
   static setToken(t: string): void {
     ApiClient.token = t || '';
@@ -36,8 +48,40 @@ export class ApiClient {
     return ApiClient.token;
   }
 
-  static hasToken(): boolean {
-    return ApiClient.token.length > 0;
+  static hasAuth(): boolean {
+    return ApiClient.userId > 0 && ApiClient.token.length > 0;
+  }
+
+  static buildAuthHeader(): string {
+    const payload: string = JSON.stringify({
+      domain: ApiClient.AUTH_DOMAIN,
+      userId: ApiClient.userId > 0 ? ApiClient.userId : '',
+      version: ApiClient.AUTH_VERSION,
+      timestamp: Date.now()
+    });
+    const keyBytes: number[] = ApiClient.toUtf8(ApiClient.DES_KEY_STR).slice(0, 8);
+    const plainBytes: number[] = ApiClient.toUtf8(payload);
+    const encrypted: number[] = desEcbEncrypt(keyBytes, plainBytes);
+    let hex = '';
+    for (let i = 0; i < encrypted.length; i++) {
+      hex += ('0' + encrypted[i].toString(16)).slice(-2);
+    }
+    return hex;
+  }
+
+  private static toUtf8(str: string): number[] {
+    const arr: number[] = [];
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      if (c < 0x80) {
+        arr.push(c);
+      } else if (c < 0x800) {
+        arr.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F));
+      } else {
+        arr.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
+      }
+    }
+    return arr;
   }
 
   // 拼绝对地址：传入 /api/... 或 /login/api/... 自动加 BASE；完整 URL 原样返回
@@ -90,7 +134,7 @@ export class ApiClient {
     return full.resp.extra as T;
   }
 
-  // 完整请求：返回 ApiResp + 响应头（登录要从头里拿 Set-Cookie）。
+  // 完整请求：返回 ApiResp + 响应头。
   static async requestFull<T>(method: http.RequestMethod, path: string,
     body: object | null, allowRelogin: boolean): Promise<FullResp<T>> {
     const first = await ApiClient.doOnce<T>(method, path, body);
@@ -122,6 +166,9 @@ export class ApiClient {
     if (r.httpStatus === 401 || r.httpStatus === 403) {
       return true;
     }
+    if (r.resp.code === 10003) {
+      return true;
+    }
     if (r.resp.code !== 0) {
       const msg = r.resp.message || '';
       if (msg.indexOf('登录') >= 0 || msg.indexOf('token') >= 0 || msg.indexOf('Token') >= 0) {
@@ -148,6 +195,7 @@ export class ApiClient {
     const headers: Record<string, string> = {
       'Accept': 'application/json, text/plain, */*'
     };
+    headers['X-Custom-Auth'] = ApiClient.buildAuthHeader();
     if (ApiClient.token.length > 0) {
       headers['Cookie'] = 'token=' + ApiClient.token;
     }
@@ -207,7 +255,6 @@ export class ApiClient {
     return out;
   }
 
-  // 从响应头提取 token（Set-Cookie: token=xxxx; Path=/ ...）
   static extractToken(headers: Record<string, string>): string {
     const sc = headers['set-cookie'] || '';
     if (sc.length === 0) {
@@ -229,6 +276,7 @@ export class ApiClient {
       'Accept': 'application/json, text/plain, */*',
       'Content-Type': 'multipart/form-data'
     };
+    headers['X-Custom-Auth'] = ApiClient.buildAuthHeader();
     if (ApiClient.token.length > 0) {
       headers['Cookie'] = 'token=' + ApiClient.token;
     }
