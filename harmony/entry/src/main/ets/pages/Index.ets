@@ -8,6 +8,7 @@
 
 import { HdsTabs, HdsTabsController, hdsMaterial } from '@kit.UIDesignKit';
 import { SymbolGlyphModifier } from '@kit.ArkUI';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Theme } from '../theme/Theme';
 import { Nav } from '../utils/Nav';
 import { SessionStore } from '../store/SessionStore';
@@ -38,22 +39,29 @@ const TABS: TabItem[] = [
   { label: '设置', symbol: $r('sys.symbol.gearshape') }
 ];
 
+const DOMAIN = 0x0002;
+const TAG = 'Index';
+
 @Entry
 @ComponentV2
 struct Index {
   private tabsController: HdsTabsController = new HdsTabsController();
-  session: SessionStore = SessionStore.instance;
-  settings: SettingsStore = SettingsStore.instance;
-  ui: UiStore = UiStore.instance;
+  private session: SessionStore = SessionStore.instance;
+  private settings: SettingsStore = SettingsStore.instance;
+  private ui: UiStore = UiStore.instance;
+  @Local private booting: boolean = SessionStore.instance.booting;
+  @Local private loggedIn: boolean = SessionStore.instance.loggedIn;
   @Local private displayLg: number = SettingsStore.instance.lgIntensity;
   private lgTick: number = -1;
+  private sessionListener: () => void = () => {
+    this.syncAppState();
+  };
 
   aboutToAppear(): void {
+    this.session.addListener(this.sessionListener);
+    this.syncAppState();
     this.lgTick = setInterval(() => {
-      const lv = this.settings.lgIntensity;
-      if (lv !== this.displayLg) {
-        this.displayLg = lv;
-      }
+      this.syncAppState();
     }, 500) as number;
   }
 
@@ -61,6 +69,22 @@ struct Index {
     if (this.lgTick >= 0) {
       clearInterval(this.lgTick);
       this.lgTick = -1;
+    }
+    this.session.removeListener(this.sessionListener);
+  }
+
+  private syncAppState(): void {
+    const lv = this.settings.lgIntensity;
+    if (lv !== this.displayLg) {
+      this.displayLg = lv;
+    }
+    if (this.session.booting !== this.booting) {
+      this.booting = this.session.booting;
+      hilog.info(DOMAIN, TAG, 'state sync booting=%{public}s', String(this.booting));
+    }
+    if (this.session.loggedIn !== this.loggedIn) {
+      this.loggedIn = this.session.loggedIn;
+      hilog.info(DOMAIN, TAG, 'state sync loggedIn=%{public}s', String(this.loggedIn));
     }
   }
 
@@ -160,10 +184,16 @@ struct Index {
   build() {
     Navigation(Nav.stack) {
       Stack() {
-        if (this.session.booting) {
+        if (this.booting) {
           this.splash()
-        } else if (!this.session.loggedIn) {
-          LoginPage()
+        } else if (!this.loggedIn) {
+          LoginPage({
+            onLogin: () => {
+              this.booting = false;
+              this.loggedIn = true;
+              hilog.info(DOMAIN, TAG, 'login event loggedIn=true');
+            }
+          })
         } else {
           this.mainTabs()
         }

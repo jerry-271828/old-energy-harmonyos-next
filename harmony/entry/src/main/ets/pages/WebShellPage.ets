@@ -19,7 +19,6 @@ const DOMAIN = 0x0001;
 const TAG = 'WebShellPage';
 
 const ENTRY_URL: string = 'https://bdfz.xnykcxt.com:5002/stu/#/login';
-const UA_SUFFIX: string = ' BetterXNY/HarmonyOS-1.0';
 
 // 沉浸式安全区兜底脚本（与旧版一致，见 viewport_fix.js 注释）
 const SAFE_AREA_KICK: string =
@@ -152,13 +151,6 @@ export struct WebShellPage {
               { script: this.earlyScript, scriptRules: ['*'] }
             ])
             .onControllerAttached(() => {
-              try {
-                const sysUa = this.controller.getUserAgent();
-                this.controller.setCustomUserAgent(sysUa + UA_SUFFIX);
-              } catch (e) {
-                const err = e as BusinessError;
-                hilog.warn(DOMAIN, TAG, 'setCustomUserAgent failed: %{public}s', err.message);
-              }
               try {
                 webview.WebviewController.setWebDebuggingAccess(true);
               } catch (_) {

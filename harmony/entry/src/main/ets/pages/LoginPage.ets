@@ -4,8 +4,7 @@
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Theme } from '../theme/Theme';
 import { SessionStore } from '../store/SessionStore';
-import { SettingsStore } from '../store/SettingsStore';
-import { GlassCard, SquishButton } from '../components/glass/GlassKit';
+import { GlassCard } from '../components/glass/GlassKit';
 import { ApiError } from '../models/ApiTypes';
 
 const DOMAIN = 0x0002;
@@ -13,6 +12,7 @@ const TAG = 'LoginPage';
 
 @ComponentV2
 export struct LoginPage {
+  @Param onLogin: () => void = () => {};
   @Local account: string = SessionStore.instance.account;
   @Local pwd: string = SessionStore.instance.pwd;
   @Local remember: boolean = SessionStore.instance.remember;
@@ -21,6 +21,9 @@ export struct LoginPage {
   @Local errorMsg: string = '';
 
   private async doLogin(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
     const acc = this.account.trim();
     const pw = this.pwd;
     if (acc.length === 0 || pw.length === 0) {
@@ -28,10 +31,13 @@ export struct LoginPage {
       return;
     }
     this.busy = true;
-    this.errorMsg = '';
+    this.errorMsg = '正在登录...';
+    hilog.info(DOMAIN, TAG, 'login submit');
     try {
       await SessionStore.instance.signin(acc, pw, this.remember);
+      this.errorMsg = '';
       hilog.info(DOMAIN, TAG, 'login ok');
+      this.onLogin();
     } catch (e) {
       if (e instanceof ApiError) {
         this.errorMsg = e.message;
@@ -39,6 +45,7 @@ export struct LoginPage {
         const err = e as Error;
         this.errorMsg = err.message || '登录失败，请检查网络';
       }
+      hilog.warn(DOMAIN, TAG, 'login failed: %{public}s', this.errorMsg);
     } finally {
       this.busy = false;
     }
@@ -97,28 +104,18 @@ export struct LoginPage {
           .textAlign(TextAlign.Center)
       }
 
-      SquishButton({
-        onTap: () => {
-          if (!this.busy) {
-            this.doLogin();
-          }
-        }
-      }) {
-        Row({ space: 8 }) {
-          if (this.busy) {
-            LoadingProgress().width(20).height(20).color(Color.White)
-          }
-          Text(this.busy ? '登录中...' : '开始使用')
-            .fontSize(16)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(Color.White)
-        }
-        .width('100%')
-        .height(48)
-        .justifyContent(FlexAlign.Center)
-        .backgroundColor(Theme.PRIMARY)
-        .borderRadius(Theme.R_XL)
-      }
+      Button(this.busy ? '登录中...' : '开始使用', { type: ButtonType.Normal, stateEffect: true })
+      .width('100%')
+      .height(48)
+      .backgroundColor(Theme.PRIMARY)
+      .borderRadius(Theme.R_XL)
+      .fontSize(16)
+      .fontWeight(FontWeight.Medium)
+      .fontColor(Color.White)
+      .enabled(!this.busy)
+      .onClick(() => {
+        this.doLogin();
+      })
 
       Row({ space: 6 }) {
         Checkbox()

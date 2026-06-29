@@ -11,6 +11,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { desEcbEncrypt } from '../utils/Des';
 import { ApiResp, ApiError } from '../models/ApiTypes';
+import { ApiHeaders } from './ApiHeaders';
 
 const DOMAIN = 0x0002;
 const TAG = 'ApiClient';
@@ -192,13 +193,8 @@ export class ApiClient {
     body: object | null): Promise<FullResp<T>> {
     const url = ApiClient.absolute(path);
     const client = http.createHttp();
-    const headers: Record<string, string> = {
-      'Accept': 'application/json, text/plain, */*'
-    };
-    headers['X-Custom-Auth'] = ApiClient.buildAuthHeader();
-    if (ApiClient.token.length > 0) {
-      headers['Cookie'] = 'token=' + ApiClient.token;
-    }
+    const headers: Record<string, string> =
+      ApiHeaders.json(ApiClient.buildAuthHeader(), ApiClient.token);
     const options: http.HttpRequestOptions = {
       method: method,
       header: headers,
@@ -272,14 +268,8 @@ export class ApiClient {
     mime: string, fieldName: string): Promise<T> {
     const url = ApiClient.absolute(path);
     const client = http.createHttp();
-    const headers: Record<string, string> = {
-      'Accept': 'application/json, text/plain, */*',
-      'Content-Type': 'multipart/form-data'
-    };
-    headers['X-Custom-Auth'] = ApiClient.buildAuthHeader();
-    if (ApiClient.token.length > 0) {
-      headers['Cookie'] = 'token=' + ApiClient.token;
-    }
+    const headers: Record<string, string> =
+      ApiHeaders.multipart(ApiClient.buildAuthHeader(), ApiClient.token);
     const form: http.MultiFormData = {
       name: fieldName,
       contentType: mime,

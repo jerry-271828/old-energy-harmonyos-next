@@ -14,6 +14,7 @@ import { http } from '@kit.NetworkKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { ApiClient } from '../net/ApiClient';
+import { ApiHeaders } from '../net/ApiHeaders';
 
 const DOMAIN = 0x0002;
 const TAG = 'Downloader';
@@ -53,11 +54,9 @@ export class Downloader {
       // 探测失败按未命中处理
     }
 
-    const headerMap: Record<string, string> = { 'Accept': '*/*' };
-    if (ApiClient.hasAuth()) {
-      headerMap['X-Custom-Auth'] = ApiClient.buildAuthHeader();
-      headerMap['Cookie'] = 'token=' + ApiClient.getToken();
-    }
+    const headerMap: Record<string, string> = ApiClient.hasAuth()
+      ? ApiHeaders.download(ApiClient.buildAuthHeader(), ApiClient.getToken())
+      : { 'Accept': '*/*' };
 
     // 先下到 .part 临时文件，成功再改名为目标名——避免半截文件被上面的"非空即命中"逻辑误当成缓存。
     const tmpPath = filePath + '.part';

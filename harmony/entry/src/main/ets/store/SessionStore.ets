@@ -20,10 +20,12 @@ const K_REMEMBER = 'bxny_remember';
 const K_USER = 'bxny_user_info';
 
 const AUTO_LOGIN_TIMEOUT_MS = 8000;   // 无缓存会话时自动登录的硬超时，避免冷网络下开屏卡死
+type SessionListener = () => void;
 
 @ObservedV2
 export class SessionStore {
   static readonly instance: SessionStore = new SessionStore();
+  private static readonly listeners: Array<SessionListener> = [];
 
   @Trace loggedIn: boolean = false;
   @Trace user: UserInfo | null = null;
@@ -34,6 +36,28 @@ export class SessionStore {
   remember: boolean = true;
 
   private constructor() {
+  }
+
+  addListener(listener: SessionListener): void {
+    if (SessionStore.listeners.indexOf(listener) < 0) {
+      SessionStore.listeners.push(listener);
+    }
+  }
+
+  removeListener(listener: SessionListener): void {
+    const idx = SessionStore.listeners.indexOf(listener);
+    if (idx >= 0) {
+      SessionStore.listeners.splice(idx, 1);
+    }
+  }
+
+  private notifyChanged(reason: string): void {
+    hilog.info(DOMAIN, TAG, 'state changed %{public}s loggedIn=%{public}s booting=%{public}s',
+      reason, String(this.loggedIn), String(this.booting));
+    const snapshot = SessionStore.listeners.slice();
+    for (let i = 0; i < snapshot.length; i++) {
+      snapshot[i]();
+    }
   }
 
   // EntryAbility.onCreate 调（GmStorage.init 之后）
@@ -72,6 +96,7 @@ export class SessionStore {
     // 自动登录关：始终回登录页，不拿缓存会话自动进入。
     if (!autoLoginEnabled) {
       this.booting = false;
+      this.notifyChanged('auto-login-disabled');
       return;
     }
     const hasCreds = this.account.length > 0 && this.pwd.length > 0;
@@ -80,6 +105,7 @@ export class SessionStore {
     if (ApiClient.hasAuth() && this.user !== null) {
       this.loggedIn = true;
       this.booting = false;
+      this.notifyChanged('cached-session');
       if (hasCreds) {
         this.refreshLoginInBackground();
       }
@@ -97,6 +123,7 @@ export class SessionStore {
       }
     }
     this.booting = false;
+    this.notifyChanged('auto-login-finished');
   }
 
   // 后台静默刷新登录态：成功刷新 userId；失败保留缓存会话（由静默重登在后续请求兜底）。
@@ -131,6 +158,7 @@ export class SessionStore {
     const user = await AuthApi.signin(account, pwd);
     this.user = user;
     this.loggedIn = true;
+    this.booting = false;
     this.account = account;
     this.pwd = pwd;
     this.remember = remember;
@@ -146,6 +174,7 @@ export class SessionStore {
       GmStorage.putAsync(K_PWD, '');
       GmStorage.putAsync(K_REMEMBER, '0');
     }
+    this.notifyChanged('signin');
     return user;
   }
 
@@ -157,13 +186,14 @@ export class SessionStore {
     try {
       await AuthApi.signin(this.account, this.pwd);
       GmStorage.putAsync(K_USER_ID, String(ApiClient.getUserId()));
-    GmStorage.putAsync(K_TOKEN, ApiClient.getToken());
+      GmStorage.putAsync(K_TOKEN, ApiClient.getToken());
       hilog.info(DOMAIN, TAG, 'silent relogin ok');
       return true;
     } catch (e) {
       const err = e as BusinessError;
       hilog.warn(DOMAIN, TAG, 'silent relogin failed: %{public}s', err.message);
       this.loggedIn = false;
+      this.notifyChanged('silent-relogin-failed');
       return false;
     }
   }
@@ -175,8 +205,10 @@ export class SessionStore {
       // 网络失败也照样本地登出
     }
     this.loggedIn = false;
+    this.booting = false;
     this.user = null;
     GmStorage.putAsync(K_USER_ID, '');
     GmStorage.putAsync(K_TOKEN, '');
+    this.notifyChanged('logout');
   }
 }
