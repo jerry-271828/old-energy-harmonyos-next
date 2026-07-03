@@ -1,4 +1,4 @@
-# 爆改新能源 · HarmonyOS NEXT
+# 爆改旧能源 · HarmonyOS NEXT
 
 把 `com.example.xny`（爆改新能源 5.0，原作者「Aushen」）移植到 **HarmonyOS NEXT**。
 
