@@ -1,6 +1,9 @@
 .claude/
 .playwright-cli/
+.playwright-mcp/
+.codex/
 review.txt
+FABLE_5_TASK_BRIEF.md
 commandline-tools-*.zip
 
 # HarmonyOS build artifacts & local config

@@ -5,7 +5,7 @@
       "obfuscation": {
         "ruleOptions": {
           "enable": false,
-          "files": ["./obfuscation-rules.txt"]
+          "files": ["./obfuscation-rulxes.txt"]
         }
       }
     }

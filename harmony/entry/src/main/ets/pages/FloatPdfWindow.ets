@@ -55,6 +55,10 @@ export struct FloatPdfWindow {
   userScripts: UserScript[] = [];
   onCloseRequest: () => void = () => {};
 
+  // 加载状态追踪（局部 @State，非 @Link，关闭时自动重置）
+  @State private loadError: boolean = false;
+  @State private errorInfo: string = '';
+
   private controller: webview.WebviewController = new webview.WebviewController();
   // 拖动开始时拍快照，避免在 onActionUpdate 累加导致数值漂移。
   private dragStartGeom: FloatGeom = { x: 0, y: 0, w: 0, h: 0 };
@@ -141,6 +145,16 @@ export struct FloatPdfWindow {
     this.geom = this.clampGeom(next);
   }
 
+  private retryLoad(): void {
+    this.loadError = false;
+    this.errorInfo = '';
+    try {
+      this.controller.refresh();
+    } catch (_e) {
+      // ignore
+    }
+  }
+
   @Builder titleBar() {
     Row() {
       Text('PDF 预览')
@@ -196,7 +210,33 @@ export struct FloatPdfWindow {
   }
 
   @Builder webArea() {
-    if (this.mounted && this.url.length > 0) {
+    if (this.loadError) {
+      // 错误态：显示失败原因和重试按钮
+      Column() {
+        SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+          .fontSize(48).fontColor([Color.Red]).margin({ bottom: 12 })
+        Text('PDF 加载失败')
+          .fontSize(16).fontColor('#333').margin({ bottom: 4 })
+        Text(this.errorInfo.length > 0 ? this.errorInfo : '请检查网络连接后重试')
+          .fontSize(13).fontColor('#999').margin({ bottom: 16 })
+          .maxLines(2).textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .padding({ left: 16, right: 16 })
+        Button({ type: ButtonType.Capsule }) {
+          Text('重试').fontSize(14).fontColor(Color.White)
+        }
+        .onClick(() => {
+          this.retryLoad();
+        })
+        .fontSize(14).fontColor(Color.White)
+        .backgroundColor('#3367FF').borderRadius(20)
+        .width(120).height(40)
+      }
+      .width('100%').layoutWeight(1)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor('#FAFAFA')
+    } else if (this.mounted && this.url.length > 0) {
       Web({ src: this.url, controller: this.controller })
         .domStorageAccess(true)
         .javaScriptAccess(true)
@@ -214,6 +254,11 @@ export struct FloatPdfWindow {
         .javaScriptOnDocumentStart([
           { script: this.earlyScript, scriptRules: ['*'] }
         ])
+        .onPageBegin(() => {
+          this.loadError = false;
+          this.errorInfo = '';
+          hilog.info(DOMAIN, TAG, 'pageBegin');
+        })
         .onPageEnd((event) => {
           const u: string = event?.url ?? '';
           hilog.info(DOMAIN, TAG, 'pageEnd: %{public}s', u);
@@ -243,9 +288,20 @@ export struct FloatPdfWindow {
           }
         })
         .onErrorReceive((event) => {
-          const u: string = event?.request?.getRequestUrl() ?? '';
+          const req = event?.request;
+          // 只对主框架（main frame）失败显示全屏错误；
+          // 子资源（worker / font / range request）失败不影响 PDF 内容，忽略。
+          const isMain: boolean = req?.isMainFrame() ?? true;
+          if (!isMain) {
+            hilog.info(DOMAIN, TAG, 'errorReceive subresource ignored: %{public}s',
+              req?.getRequestUrl() ?? '');
+            return;
+          }
+          const u: string = req?.getRequestUrl() ?? '';
           const info: string = event?.error?.getErrorInfo() ?? '';
-          hilog.warn(DOMAIN, TAG, 'errorReceive %{public}s: %{public}s', u, info);
+          this.loadError = true;
+          this.errorInfo = info.length > 0 ? info : '加载错误';
+          hilog.warn(DOMAIN, TAG, 'errorReceive main-frame %{public}s: %{public}s', u, info);
         })
         .onConsole((event) => {
           const msg = event?.message;
@@ -257,12 +313,16 @@ export struct FloatPdfWindow {
         .width('100%')
         .layoutWeight(1)
     } else {
+      // 加载中
       Column() {
         LoadingProgress().width(40).height(40).color('#5280FF')
+        Text('正在加载 PDF...')
+          .fontSize(14).fontColor('#888').margin({ top: 12 })
       }
       .width('100%').layoutWeight(1)
       .justifyContent(FlexAlign.Center)
       .alignItems(HorizontalAlign.Center)
+      .backgroundColor('#FAFAFA')
     }
   }
 

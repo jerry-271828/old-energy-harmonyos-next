@@ -10,6 +10,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { AndroidBridge } from '../bridge/AndroidBridge';
 import { ScriptBuilder, InjectionBundle, UserScript } from '../utils/ScriptBuilder';
 import { FloatPdfWindow, FloatState, FloatGeom, defaultFloatGeom } from './FloatPdfWindow';
+import { ApiClient } from '../net/ApiClient';
 
 interface PermResult {
   authResults: abilityAccessCtrl.GrantStatus[];
@@ -76,6 +77,24 @@ export struct WebShellPage {
 
   private openFloatPdf(url: string): void {
     hilog.info(DOMAIN, TAG, 'openFloatPdf: %{public}s', url);
+
+    // Sync the auth token as a cookie covering the full domain with path=/,
+    // since the server-set login cookie (scoped to /stu/ at login time) may
+    // not be sent to /exam/pdf/web/ requests that the float WebView makes.
+    try {
+      const token: string = ApiClient.getToken();
+      if (token.length > 0) {
+        const origin: string = ApiClient.ORIGIN;
+        webview.WebCookieManager.configCookieSync(origin, 'token=' + token + '; path=/');
+        hilog.info(DOMAIN, TAG, 'openFloatPdf: cookie synced for origin=%{public}s', origin);
+      } else {
+        hilog.warn(DOMAIN, TAG, 'openFloatPdf: no token available, cookie not synced');
+      }
+    } catch (e) {
+      const err = e as BusinessError;
+      hilog.warn(DOMAIN, TAG, 'openFloatPdf: cookie sync threw: %{public}s', err.message);
+    }
+
     this.floatMount = false;
     setTimeout(() => {
       this.floatUrl = url;

@@ -102,7 +102,10 @@ ScriptBuilder.build()
 AndroidBridge（javaScriptProxy，方法名即 JS ABI）
   getValue/setValue → GmStorage ; showNotification → GmNotifier
   xhrRequest(json)  → GmHttp（http 异步，结果经 runJavaScript 回调 window.__gm_xhr_resolve）
-  openFloatPdf(url) → 挂载 FloatPdfWindow（第二个 Web 承载 PDF 浮窗，故意不挂 AndroidBridge；★ 浮窗当前实际未生效，见文末「已知未完成」）
+  openFloatPdf(url) → 挂载 FloatPdfWindow（第二个 Web 承载 PDF.js viewer 浮窗，故意不挂 AndroidBridge 以免抢 GmHttp controller）。
+    浮窗触发时会先通过 WebCookieManager.configCookieSync 将登录 token 以 path=/ 注入共享 Cookie 存储（解决 /stu/ → /exam/pdf/web/ 跨路径 Cookie 问题），
+    再启动浮窗 WebView 加载 PDF viewer URL。浮窗内 onErrorReceive 用 isMainFrame() 过滤子资源错误，
+    仅主框架失败显示全屏错误 UI 和重试按钮。
 ```
 
 ## 关键约束（违反即破坏功能）
@@ -121,4 +124,4 @@ AndroidBridge（javaScriptProxy，方法名即 JS ABI）
 
 `harmony/README.md` 仍按「纯 WebView 壳」描述（目标 SDK 6.0.2(22)、「没有复刻 floatWebView」、「下载逻辑仅 toast」）——**均已过时**：原生版是主体，下载/附件预览/拍照上传均已落地。以代码为准。
 
-> **已知未完成**：`FloatPdfWindow.ets` 虽存在并被 `WebShellPage` 引用，但**浮动 PDF 实际尚未真正生效**——勿当作已完成功能（README 与本文件历史版本都曾误称「已实现」）。
+> **已知修复**：`FloatPdfWindow.ets` 已通过 Cookie 预置（`WebCookieManager.configCookieSync`）+ 错误处理修复。触发机制：`main_pack.js` 轮询检测 `<iframe src*="/exam/pdf/web/viewer.html">` → `AndroidBridge.openFloatPdf(url)` → cookie sync → 浮窗 WebView 加载 PDF.js viewer。浮窗支持拖拽/缩放/最小化/最大化/关闭，加载失败时显示错误信息和重试按钮。
