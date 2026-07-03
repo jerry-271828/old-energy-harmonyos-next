@@ -558,7 +558,7 @@ export struct CourseDetailPage {
     }
     }
     .width('100%')
-    .margin({ left: 16, right: 16, bottom: 8 })
+    .padding({ left: 16, right: 16, bottom: 8 })
   }
 
   @Builder
@@ -609,7 +609,7 @@ export struct CourseDetailPage {
     }
     }
     .width('100%')
-    .margin({ left: 16, right: 16, top: 4, bottom: 4 })
+    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
     .onClick(() => {
       this.openAttachment(att);
     })
@@ -817,7 +817,7 @@ export struct CourseDetailPage {
     }
     }
     .width('100%')
-    .margin({ left: 16, right: 16, top: 4, bottom: 4 })
+    .padding({ left: 16, right: 16, top: 4, bottom: 4 })
   }
 
   @Builder
@@ -1216,7 +1216,7 @@ export struct CourseDetailPage {
       }
       }
       .width('100%')
-      .margin({ left: 16, right: 16, top: 8, bottom: 8 })
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
     }
   }
 
@@ -1397,7 +1397,7 @@ export struct CourseDetailPage {
               .layoutWeight(1)
               .scrollBar(BarState.Off)
               .edgeEffect(EdgeEffect.Spring)
-              .padding({ bottom: 80 })
+              .padding({ bottom: this.ui.bottomSafeVp + 12 })
             }
             .width('100%')
             .layoutWeight(1)

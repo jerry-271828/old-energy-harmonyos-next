@@ -309,7 +309,7 @@ export struct SettingsPage {
           .width('100%')
         }
 
-        Text('爆改新能源 · HarmonyOS 原生版 2.0 · 原作者 程序猿')
+        Text('爆改新能源 · HarmonyOS 原生版 2.0 · 原作者 Aushen')
           .fontSize(Theme.F_MINI)
           .fontColor(Theme.TEXT_3)
           .width('100%')

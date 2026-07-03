@@ -1,6 +1,6 @@
 # betterxny-hm · 鸿蒙适配版
 
-把 `com.example.xny`（爆改新能源 5.0，原作者「程序猿」）移植到 **HarmonyOS NEXT**。原 App 是个 Android WebView 壳 + 油猴脚本；鸿蒙版已**全面原生化**——登录 / 课程 / 考试 / AI 问答 / 收藏 / 课件详情 / 快捷提交 / PDF 批注 / 搜索 / 待办 均用 ArkUI 原生实现，只在「网页版兼容模式」里保留完整的 WebView + 油猴注入链路作为回退。
+把 `com.example.xny`（爆改新能源 5.0，原作者「Aushen」）移植到 **HarmonyOS NEXT**。原 App 是个 Android WebView 壳 + 油猴脚本；鸿蒙版已**全面原生化**——登录 / 课程 / 考试 / AI 问答 / 收藏 / 课件详情 / 快捷提交 / PDF 批注 / 搜索 / 待办 均用 ArkUI 原生实现，只在「网页版兼容模式」里保留完整的 WebView + 油猴注入链路作为回退。
 
 > 目标 SDK: **HarmonyOS 6.1.0 (API 23)** · 最低 API: 21 · 模型: Stage · 语言: ArkTS / ArkUI
 > Bundle: `com.betterxny.hm` · Version: 1.1.0 · Label: 爆改新能源
@@ -200,5 +200,5 @@ harmony/
 
 ## 致谢
 
-- 原 Android 端「爆改新能源」作者 **程序猿**
+- 原 Android 端「爆改新能源」作者 **Aushen**
 - 油猴脚本核心逻辑（`main_pack.js` / `pack2.js`）沿用于网页版兼容模式
