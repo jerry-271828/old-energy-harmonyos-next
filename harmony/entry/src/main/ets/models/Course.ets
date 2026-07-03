@@ -67,6 +67,8 @@ export interface TextBlockContent {
 }
 
 // contentType 1：附件块（PDF/视频/图片等）
+// questionAttachmentType 仅在 AnswerRecord.attachments 里出现：
+//   4 = 学生提交的作答图片；5 = 教师/学生批注图层（同 id 的第二条记录）
 export interface AttachmentEntity {
   id: number;
   attachmentName: string;
@@ -79,6 +81,7 @@ export interface AttachmentEntity {
   attachmentDuration: string | null;
   attachmentPageCounts: number | null;
   convertStatus: number;
+  questionAttachmentType?: number;   // 仅作答附件有此字段：4=提交图 5=批注图
   courseAttachmentIndex: number;
   openTime: string | null;
   closeTime: string | null;

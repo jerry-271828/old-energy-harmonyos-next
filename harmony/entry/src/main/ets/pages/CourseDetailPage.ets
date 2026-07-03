@@ -21,6 +21,8 @@ import { QuickSubmitSheet, QuickSubmitItem, QuickSubmitFill } from '../component
 import { Downloader } from '../utils/Downloader';
 import { AttachmentViewerParam } from './AttachmentViewerPage';
 import { HandwritePanel, HandwriteQuestionItem } from '../components/HandwritePanel';
+import { ReviewPanel } from '../components/ReviewPanel';
+import { SessionStore } from '../store/SessionStore';
 
 const DOMAIN = 0x0002;
 const TAG = 'CourseDetailPage';
@@ -60,6 +62,7 @@ export struct CourseDetailPage {
   @Local private showQuickSubmit: boolean = false;   // 快捷提交弹窗
   @Local private quickSubmitting: boolean = false;
   @Local private quickItems: QuickSubmitItem[] = [];
+  @Local private reviewQuestionIdx: number = -1;    // >=0 时显示批阅面板
   // 点选乐观更新覆盖层：qid → studentAnswer。点击即写，给即时高亮反馈；
   // 保存成功/失败后重拉 answers() 再清除对应项，回到服务端真值（含判分）。
   @Local private pendingAnswers: Map<number, string> = new Map<number, string>();
@@ -418,6 +421,39 @@ export struct CourseDetailPage {
       }
     }
     return null;
+  }
+
+  // 扁平化所有题目（含复合题的子题），与 ReviewPanel 导航对齐。
+  private flatQuestions(): QuestionContent[] {
+    const out: QuestionContent[] = [];
+    for (let i = 0; i < this.blocks.length; i++) {
+      const b = this.blocks[i];
+      if (b.contentType !== 2 || b.question === null) { continue; }
+      const q = b.question;
+      if (q.childList !== null && q.childList.length > 0) {
+        for (let c = 0; c < q.childList.length; c++) {
+          out.push(q.childList[c]);
+        }
+      } else {
+        out.push(q);
+      }
+    }
+    return out;
+  }
+
+  // 找到题目在 flatQuestions() 中的下标，打开批阅面板。
+  private openReview(questionId: number): void {
+    const flat = this.flatQuestions();
+    for (let i = 0; i < flat.length; i++) {
+      if (flat[i].id === questionId) {
+        this.reviewQuestionIdx = i;
+        return;
+      }
+    }
+    // 未命中（不应发生）：默认打开第一题
+    if (flat.length > 0) {
+      this.reviewQuestionIdx = 0;
+    }
   }
 
   @Builder
@@ -814,13 +850,26 @@ export struct CourseDetailPage {
         Divider().color(Theme.DIVIDER)
 
         ForEach(this.getAnswerAttachments(q.id), (att: AttachmentEntity) => {
-          Image(ApiClient.assetUrl(att.attachmentLinkAddress))
-            .width('100%')
-            .objectFit(ImageFit.Contain)
-            .borderRadius(Theme.R_SM)
-            .colorFilter(this.settings.enableImageInvert
-              ? [-1, 0, 0, 0, 1, 0, -1, 0, 0, 1, 0, 0, -1, 0, 1, 0, 0, 0, 1, 0]
-              : undefined)
+          Stack({ alignContent: Alignment.TopEnd }) {
+            Image(ApiClient.assetUrl(att.attachmentLinkAddress))
+              .width('100%')
+              .objectFit(ImageFit.Contain)
+              .borderRadius(Theme.R_SM)
+              .colorFilter(this.settings.enableImageInvert
+                ? [-1, 0, 0, 0, 1, 0, -1, 0, 0, 1, 0, 0, -1, 0, 1, 0, 0, 0, 1, 0]
+                : undefined)
+              .onClick(() => { this.openReview(q.id); })
+
+            // 批阅入口角标
+            Text('批阅')
+              .fontSize(10)
+              .fontColor(Color.White)
+              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+              .backgroundColor(Theme.PRIMARY)
+              .borderRadius({ topLeft: 0, topRight: Theme.R_SM, bottomLeft: Theme.R_SM, bottomRight: 0 })
+              .onClick(() => { this.openReview(q.id); })
+          }
+          .width('100%')
         }, (att: AttachmentEntity) => `ans_att_${att.id}`)
 
         if (this.getStudentAnswer(q.id).length > 0) {
@@ -1296,6 +1345,26 @@ export struct CourseDetailPage {
           })
         }
 
+        // 批阅面板覆盖层
+        if (this.reviewQuestionIdx >= 0) {
+          ReviewPanel({
+            questions: this.flatQuestions(),
+            answers: this.answers,
+            entityId: this.entityId,
+            kind: this.kind,
+            initialQuestionIdx: this.reviewQuestionIdx,
+            studentId: SessionStore.instance.user !== null ? SessionStore.instance.user.userId : 0,
+            onClose: () => { this.reviewQuestionIdx = -1; },
+            onScored: () => {
+              // 重拉作答记录，刷新题目区的分数显示
+              const api = this.kind === 'paper' ? StudyApi.paper : StudyApi.course;
+              api.answers(this.entityId).then((ans: AnswerRecord[]) => {
+                this.answers = ans;
+              });
+            }
+          })
+        }
+
         // 快捷提交弹窗
         if (this.showQuickSubmit) {
           QuickSubmitSheet({
@@ -1330,6 +1399,10 @@ export struct CourseDetailPage {
       }
       if (this.handwriteQuestionId > 0) {
         this.handwriteQuestionId = 0;
+        return true;
+      }
+      if (this.reviewQuestionIdx >= 0) {
+        this.reviewQuestionIdx = -1;
         return true;
       }
       Nav.pop();

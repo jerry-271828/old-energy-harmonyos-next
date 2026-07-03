@@ -5,7 +5,7 @@
 import { ApiClient } from '../ApiClient';
 import { CourseListItem, CourseEntityInfo, RawContentBlock, CourseBlock,
   TextBlockContent, AttachmentEntity, CourseStatistics } from '../../models/Course';
-import { QuestionContent, AnswerRecord } from '../../models/Question';
+import { QuestionContent, AnswerRecord, ReadoverItem } from '../../models/Question';
 import { CatalogNode } from '../../models/Catalog';
 
 export type StudyKind = 'course' | 'paper';
@@ -158,5 +158,13 @@ export class StudyApi {
     attachmentId: number): Promise<void> {
     await ApiClient.put<object>(
       `/api/student/${this.kind}/entity/${entityId}/question/${questionId}/attachment/${attachmentId}/del`, null);
+  }
+
+  // 学生自评（批阅打分）：POST /api/student/handle/readover。
+  // body 为数组（即使只评一题也必须包一层数组，对照 Vue 源码）。
+  // judgeTag=2（学生自评），readOverTag=1（已批阅），studentScore=得分。
+  // 响应 extra 为 boolean；此处只需确认无异常，不需要返回值。
+  async readover(items: ReadoverItem[]): Promise<void> {
+    await ApiClient.post<object>('/api/student/handle/readover', items);
   }
 }

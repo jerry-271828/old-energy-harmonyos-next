@@ -82,3 +82,18 @@ export interface ErrorCauseRecord {
   studentId: number;
   wrongCause: string | null;
 }
+
+// 自评（学生批阅）请求项：POST /api/student/handle/readover body 数组元素
+// judgeTag=2（学生自评）、readOverTag=1（已读）、studentScore 为得分
+export interface ReadoverItem {
+  courseId?: number;
+  paperId?: number;
+  questionId: number;
+  studentId: number;
+  judgeTag: number;                    // 2 = 学生自评
+  readOverTag: number;                 // 1 = 已批阅
+  studentScore: number;
+  answer: string | null;
+  teacherReadOverContent: string | null;
+  readAttachmentList: object[] | null;
+}
