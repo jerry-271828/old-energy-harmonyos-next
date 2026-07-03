@@ -6,6 +6,7 @@
 import { GmStorage } from '../bridge/GmStorage';
 
 const SETTINGS_KEY = 'bdfz_enhancer_settings_v3';
+type SettingsListener = () => void;
 
 interface SettingsData {
   autoLogin?: boolean;
@@ -18,6 +19,7 @@ interface SettingsData {
 @ObservedV2
 export class SettingsStore {
   static readonly instance: SettingsStore = new SettingsStore();
+  private static readonly listeners: Array<SettingsListener> = [];
 
   @Trace autoLogin: boolean = true;
   @Trace enableMockEnhance: boolean = false;
@@ -26,6 +28,40 @@ export class SettingsStore {
   @Trace lgIntensity: number = 1;
 
   private constructor() {
+  }
+
+  addListener(listener: SettingsListener): void {
+    if (SettingsStore.listeners.indexOf(listener) < 0) {
+      SettingsStore.listeners.push(listener);
+    }
+  }
+
+  removeListener(listener: SettingsListener): void {
+    const idx = SettingsStore.listeners.indexOf(listener);
+    if (idx >= 0) {
+      SettingsStore.listeners.splice(idx, 1);
+    }
+  }
+
+  private notifyChanged(): void {
+    const snapshot = SettingsStore.listeners.slice();
+    for (let i = 0; i < snapshot.length; i++) {
+      snapshot[i]();
+    }
+  }
+
+  setLgIntensity(value: number): void {
+    let next = value;
+    if (next < 1) {
+      next = 1;
+    } else if (next > 3) {
+      next = 3;
+    }
+    if (this.lgIntensity === next) {
+      return;
+    }
+    this.lgIntensity = next;
+    this.save();
   }
 
   load(): void {
@@ -74,5 +110,6 @@ export class SettingsStore {
     };
     // 双重编码，保持与 gm_shim + 脚本的旧格式互通
     GmStorage.putAsync(SETTINGS_KEY, JSON.stringify(JSON.stringify(data)));
+    this.notifyChanged();
   }
 }

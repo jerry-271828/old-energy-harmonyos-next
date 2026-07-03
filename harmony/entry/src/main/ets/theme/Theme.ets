@@ -37,4 +37,13 @@ export class Theme {
     offsetX: 0,
     offsetY: 6
   };
+
+  // 底部悬浮页签栏（Index 的 HdsTabs barFloatingStyle）避让契约：
+  // TABBAR_LIFT 是页签栏底缘到屏底的距离；栏高按 BottomTabBarStyle 默认 48vp，
+  // 再算上系统导航条与玻璃投影，屏底 0~104vp 内点击可能被悬浮栏拦截。
+  // 主 Tab 页所有触底滚动容器末尾统一预留 TABBAR_CLEARANCE
+  // （List 用 contentEndOffset，Scroll 用内容底部 padding），
+  // 保证滚动到底时最后一项完整停在悬浮栏上方、整卡可点。
+  static readonly TABBAR_LIFT: number = 28;
+  static readonly TABBAR_CLEARANCE: number = 120;
 }

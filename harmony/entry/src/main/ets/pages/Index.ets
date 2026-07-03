@@ -52,32 +52,26 @@ struct Index {
   @Local private booting: boolean = SessionStore.instance.booting;
   @Local private loggedIn: boolean = SessionStore.instance.loggedIn;
   @Local private displayLg: number = SettingsStore.instance.lgIntensity;
-  private lgTick: number = -1;
   private sessionListener: () => void = () => {
     this.syncAppState();
+  };
+  private settingsListener: () => void = () => {
+    this.syncSettingsState();
   };
 
   aboutToAppear(): void {
     this.session.addListener(this.sessionListener);
+    this.settings.addListener(this.settingsListener);
     this.syncAppState();
-    this.lgTick = setInterval(() => {
-      this.syncAppState();
-    }, 500) as number;
+    this.syncSettingsState();
   }
 
-  aboutToDisappear(): void {
-    if (this.lgTick >= 0) {
-      clearInterval(this.lgTick);
-      this.lgTick = -1;
-    }
+  aboutToBeDeleted(): void {
     this.session.removeListener(this.sessionListener);
+    this.settings.removeListener(this.settingsListener);
   }
 
   private syncAppState(): void {
-    const lv = this.settings.lgIntensity;
-    if (lv !== this.displayLg) {
-      this.displayLg = lv;
-    }
     if (this.session.booting !== this.booting) {
       this.booting = this.session.booting;
       hilog.info(DOMAIN, TAG, 'state sync booting=%{public}s', String(this.booting));
@@ -85,6 +79,13 @@ struct Index {
     if (this.session.loggedIn !== this.loggedIn) {
       this.loggedIn = this.session.loggedIn;
       hilog.info(DOMAIN, TAG, 'state sync loggedIn=%{public}s', String(this.loggedIn));
+    }
+  }
+
+  private syncSettingsState(): void {
+    const lv = this.settings.lgIntensity;
+    if (lv !== this.displayLg) {
+      this.displayLg = lv;
     }
   }
 
@@ -120,7 +121,7 @@ struct Index {
       }
       .barOverlap(true)
       .barFloatingStyle({
-        barBottomMargin: 28,
+        barBottomMargin: Theme.TABBAR_LIFT,
         systemMaterialEffect: {
           materialType: hdsMaterial.MaterialType.ADAPTIVE,
           materialLevel: this.displayLg >= 3

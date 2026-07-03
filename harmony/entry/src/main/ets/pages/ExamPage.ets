@@ -205,7 +205,8 @@ export struct ExamPage {
       .height('100%')
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
-      .padding({ left: 12, right: 12, bottom: 80 })
+      .padding({ left: 12, right: 12 })
+      .contentEndOffset(Theme.TABBAR_CLEARANCE)
     }
   }
 

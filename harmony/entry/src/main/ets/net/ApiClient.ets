@@ -116,28 +116,28 @@ export class ApiClient {
     return ApiClient.request<T>(http.RequestMethod.GET, path, null);
   }
 
-  static async post<T>(path: string, body: object | null): Promise<T> {
+  static async post<T>(path: string, body: object | object[] | null): Promise<T> {
     return ApiClient.request<T>(http.RequestMethod.POST, path, body);
   }
 
-  static async put<T>(path: string, body: object | null): Promise<T> {
+  static async put<T>(path: string, body: object | object[] | null): Promise<T> {
     return ApiClient.request<T>(http.RequestMethod.PUT, path, body);
   }
 
-  static async del<T>(path: string, body: object | null): Promise<T> {
+  static async del<T>(path: string, body: object | object[] | null): Promise<T> {
     return ApiClient.request<T>(http.RequestMethod.DELETE, path, body);
   }
 
   // 常规请求：返回 extra（业务数据）。
   static async request<T>(method: http.RequestMethod, path: string,
-    body: object | null): Promise<T> {
+    body: object | object[] | null): Promise<T> {
     const full = await ApiClient.requestFull<T>(method, path, body, true);
     return full.resp.extra as T;
   }
 
   // 完整请求：返回 ApiResp + 响应头。
   static async requestFull<T>(method: http.RequestMethod, path: string,
-    body: object | null, allowRelogin: boolean): Promise<FullResp<T>> {
+    body: object | object[] | null, allowRelogin: boolean): Promise<FullResp<T>> {
     const first = await ApiClient.doOnce<T>(method, path, body);
     if (!ApiClient.needRelogin(first)) {
       ApiClient.ensureOk(first, path);
@@ -190,7 +190,7 @@ export class ApiClient {
   }
 
   private static async doOnce<T>(method: http.RequestMethod, path: string,
-    body: object | null): Promise<FullResp<T>> {
+    body: object | object[] | null): Promise<FullResp<T>> {
     const url = ApiClient.absolute(path);
     const client = http.createHttp();
     const headers: Record<string, string> =

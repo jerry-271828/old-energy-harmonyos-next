@@ -48,6 +48,32 @@ export struct SettingsPage {
   ui: UiStore = UiStore.instance;
   @Local confirmLogout: boolean = false;
   @Local private displayLg: number = SettingsStore.instance.lgIntensity;
+  private settingsListener: () => void = () => {
+    this.syncSettingsState();
+  };
+
+  aboutToAppear(): void {
+    this.settings.addListener(this.settingsListener);
+    this.syncSettingsState();
+  }
+
+  aboutToBeDeleted(): void {
+    this.settings.removeListener(this.settingsListener);
+  }
+
+  private syncSettingsState(): void {
+    const lv = this.settings.lgIntensity;
+    if (lv !== this.displayLg) {
+      this.displayLg = lv;
+    }
+  }
+
+  private setLgIntensity(value: number): void {
+    if (this.displayLg !== value) {
+      this.displayLg = value;
+    }
+    this.settings.setLgIntensity(value);
+  }
 
   @Builder
   userCard() {
@@ -109,9 +135,7 @@ export struct SettingsPage {
           .backgroundColor(this.displayLg === 1 ? Theme.PRIMARY : Color.Transparent)
           .borderRadius(Theme.R_XL)
           .onClick(() => {
-            this.displayLg = 1;
-            this.settings.lgIntensity = 1;
-            this.settings.save();
+            this.setLgIntensity(1);
           })
         Text('中')
           .fontSize(Theme.F_SUB)
@@ -120,9 +144,7 @@ export struct SettingsPage {
           .backgroundColor(this.displayLg === 2 ? Theme.PRIMARY : Color.Transparent)
           .borderRadius(Theme.R_XL)
           .onClick(() => {
-            this.displayLg = 2;
-            this.settings.lgIntensity = 2;
-            this.settings.save();
+            this.setLgIntensity(2);
           })
         Text('满')
           .fontSize(Theme.F_SUB)
@@ -131,9 +153,7 @@ export struct SettingsPage {
           .backgroundColor(this.displayLg === 3 ? Theme.PRIMARY : Color.Transparent)
           .borderRadius(Theme.R_XL)
           .onClick(() => {
-            this.displayLg = 3;
-            this.settings.lgIntensity = 3;
-            this.settings.save();
+            this.setLgIntensity(3);
           })
       }
       .backgroundColor('#F0F2F5')
@@ -294,7 +314,7 @@ export struct SettingsPage {
           .fontColor(Theme.TEXT_3)
           .width('100%')
           .textAlign(TextAlign.Center)
-          .padding({ bottom: 90 })
+          .padding({ bottom: Theme.TABBAR_CLEARANCE })
       }
       .width('100%')
       .padding({

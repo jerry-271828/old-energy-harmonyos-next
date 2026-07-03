@@ -177,5 +177,6 @@ export struct CatalogTree {
     .height('100%')
     .scrollBar(BarState.Off)
     .edgeEffect(EdgeEffect.Spring)
+    .contentEndOffset(Theme.TABBAR_CLEARANCE)
   }
 }
