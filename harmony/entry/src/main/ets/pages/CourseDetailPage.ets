@@ -959,7 +959,7 @@ export struct CourseDetailPage {
         }
 
         if (q.answerWayPhoto > 0 || q.answerWayHandle > 0) {
-          Row({ space: 8 }) {
+          Flex({ wrap: FlexWrap.Wrap }) {
             // 拍照上传：调用系统相机
             SquishButton({
               onTap: () => {
@@ -981,6 +981,31 @@ export struct CourseDetailPage {
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })
               .backgroundColor(Theme.PRIMARY_SOFT)
               .borderRadius(Theme.R_XL)
+              .margin({ right: 8, bottom: 8 })
+            }
+
+            // 上传图片：从相册选择图片
+            SquishButton({
+              onTap: () => {
+                this.uploadPhoto(q.id);
+              }
+            }) {
+              Row({ space: 6 }) {
+                if (this.uploadingQuestionId === q.id) {
+                  LoadingProgress().width(16).height(16).color(Theme.PRIMARY)
+                } else {
+                  SymbolGlyph($r('sys.symbol.plus_circle'))
+                    .fontSize(18)
+                    .fontColor([Theme.PRIMARY])
+                }
+                Text(this.uploadingQuestionId === q.id ? '上传中...' : '上传图片')
+                  .fontSize(Theme.F_SUB)
+                  .fontColor(Theme.PRIMARY)
+              }
+              .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+              .backgroundColor(Theme.PRIMARY_SOFT)
+              .borderRadius(Theme.R_XL)
+              .margin({ right: 8, bottom: 8 })
             }
 
             // 手写作答：打开画布
@@ -1001,6 +1026,7 @@ export struct CourseDetailPage {
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })
               .backgroundColor('#1AFAAD14')
               .borderRadius(Theme.R_XL)
+              .margin({ bottom: 8 })
             }
           }
           .width('100%')
