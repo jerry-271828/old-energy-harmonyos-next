@@ -1,8 +1,8 @@
 {
   "modelVersion": "5.0.0",
-  "name": "betterxny-hm",
+  "name": "betterjny-hm",
   "version": "1.1.0",
-  "description": "betterxny HarmonyOS adaptation",
+  "description": "betterjny HarmonyOS adaptation",
   "dependencies": {},
   "devDependencies": {
     "@ohos/hypium": "1.0.21"

@@ -4,7 +4,7 @@
 
 原 App 是 Android WebView 壳 + 油猴脚本；鸿蒙版以 **ArkTS/ArkUI 原生 UI** 为主体，直连后端 REST API（行为对照原 Vue 前端逆向而来），仅在「网页版兼容模式」中保留完整的 WebView 注入链路作为长尾功能回退。
 
-- Bundle：`com.betterxny.hm` · Target SDK：6.1.1(24) · Compatible：6.1.0(23) · Version：1.2.1
+- Bundle：`com.betterjny.hm` · Target SDK：6.1.1(24) · Compatible：6.1.0(23) · Version：1.2.1
 - 模型：Stage · 语言：ArkTS + ArkUI
 
 ---

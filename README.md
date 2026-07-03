@@ -65,4 +65,4 @@ push 到 `main` 自动用 HarmonyOS command-line-tools 构建 HAP，发布为 Gi
 
 ---
 
-**HarmonyOS NEXT 原生版 · Bundle `com.betterxny.hm` · Version 1.2.1**
+**HarmonyOS NEXT 原生版 · Bundle `com.betterjny.hm` · Version 1.2.1**

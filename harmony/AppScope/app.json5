@@ -1,7 +1,7 @@
 {
   "app": {
-    "bundleName": "com.betterxny.hm",
-    "vendor": "betterxny",
+    "bundleName": "com.betterjny.hm",
+    "vendor": "betterjny",
     "versionCode": 1002001,
     "versionName": "1.2.1",
     "icon": "$media:layered_image",
