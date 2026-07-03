@@ -23,6 +23,7 @@ import { AttachmentViewerParam } from './AttachmentViewerPage';
 import { HandwritePanel, HandwriteQuestionItem } from '../components/HandwritePanel';
 import { ReviewPanel } from '../components/ReviewPanel';
 import { SessionStore } from '../store/SessionStore';
+import { QwcApi, QwcRecord, QWC_LABELS } from '../net/api/QwcApi';
 
 const DOMAIN = 0x0002;
 const TAG = 'CourseDetailPage';
@@ -63,6 +64,12 @@ export struct CourseDetailPage {
   @Local private quickSubmitting: boolean = false;
   @Local private quickItems: QuickSubmitItem[] = [];
   @Local private reviewQuestionIdx: number = -1;    // >=0 时显示批阅面板
+  // 错因：questionId → wrongCause(1-6)；加载/保存后更新
+  @Local private qwcCauseMap: Map<number, number> = new Map<number, number>();
+  // 错因记录 id（用于更新已有记录）：questionId → qwcRecord.id
+  private qwcIdMap: Map<number, number> = new Map<number, number>();
+  // 当前展开错因菜单的题目 id（-1=无）
+  @Local private qwcMenuQuestionId: number = -1;
   // 点选乐观更新覆盖层：qid → studentAnswer。点击即写，给即时高亮反馈；
   // 保存成功/失败后重拉 answers() 再清除对应项，回到服务端真值（含判分）。
   @Local private pendingAnswers: Map<number, string> = new Map<number, string>();
@@ -159,6 +166,17 @@ export struct CourseDetailPage {
 
       // load statistics in background
       this.loadStatistics(api);
+
+      // load QWC (error cause) records in background
+      QwcApi.list(this.entityId, this.kind).then((qwcRecords: QwcRecord[]) => {
+        const causeMap = new Map<number, number>();
+        for (let i = 0; i < qwcRecords.length; i++) {
+          const rec = qwcRecords[i];
+          causeMap.set(rec.questionId, rec.wrongCause);
+          this.qwcIdMap.set(rec.questionId, rec.id);
+        }
+        this.qwcCauseMap = causeMap;
+      }).catch(() => {});
 
       hilog.info(DOMAIN, TAG, 'loaded %{public}d blocks, %{public}d answers',
         this.blocks.length, this.answers.length);
@@ -736,6 +754,64 @@ export struct CourseDetailPage {
           .width('100%')
           .padding({ top: 4 })
         }
+
+        // 错因选择（错题原因：粗心大意/没有思路/知识概念/过程错误/结果错误/没看懂题）
+        Column() {
+          Divider().color(Theme.DIVIDER)
+          Row({ space: 6 }) {
+            SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+              .fontSize(16)
+              .fontColor([Theme.TEXT_2])
+            Text('错因')
+              .fontSize(Theme.F_SUB)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(Theme.TEXT_2)
+            Blank().layoutWeight(1)
+            if (this.qwcCauseMap.has(q.id)) {
+              Text(QWC_LABELS[(this.qwcCauseMap.get(q.id) ?? 1) - 1])
+                .fontSize(Theme.F_MINI)
+                .fontColor(Color.White)
+                .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+                .backgroundColor(Theme.PRIMARY)
+                .borderRadius(Theme.R_SM)
+            } else {
+              Text('选择')
+                .fontSize(Theme.F_MINI)
+                .fontColor(Theme.TEXT_3)
+            }
+            SymbolGlyph(this.qwcMenuQuestionId === q.id
+              ? $r('sys.symbol.chevron_down') : $r('sys.symbol.chevron_right'))
+              .fontSize(14)
+              .fontColor([Theme.TEXT_3])
+          }
+          .width('100%')
+          .padding({ top: 4, bottom: 4 })
+          .onClick(() => {
+            if (this.qwcMenuQuestionId === q.id) {
+              this.qwcMenuQuestionId = -1;
+            } else {
+              this.qwcMenuQuestionId = q.id;
+            }
+          })
+          if (this.qwcMenuQuestionId === q.id) {
+            Flex({ wrap: FlexWrap.Wrap }) {
+              ForEach(QWC_LABELS, (label: string, idx: number) => {
+                Text(label)
+                  .fontSize(Theme.F_MINI)
+                  .fontColor(this.qwcCauseMap.get(q.id) === idx + 1 ? Color.White : Theme.TEXT)
+                  .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                  .backgroundColor(this.qwcCauseMap.get(q.id) === idx + 1 ? Theme.PRIMARY : '#F0F2F5')
+                  .borderRadius(Theme.R_SM)
+                  .onClick(() => {
+                    this.selectQwc(q.id, idx + 1);
+                  })
+              }, (label: string) => `qwc_${q.id}_${label}`)
+            }
+            .width('100%')
+            .padding({ top: 4, bottom: 4 })
+          }
+        }
+        .width('100%')
       }
       .width('100%')
     }
@@ -1076,6 +1152,25 @@ export struct CourseDetailPage {
     return rec.studentScore;
   }
 
+  // 保存错因选择：新建(id=0)或更新(已有id) POST /api/qwc/entity
+  private async selectQwc(questionId: number, wrongCause: number): Promise<void> {
+    const existingId = this.qwcIdMap.get(questionId) ?? 0;
+    try {
+      const result = await QwcApi.save(this.entityId, questionId, wrongCause, existingId, this.kind);
+      const newMap = new Map<number, number>(this.qwcCauseMap);
+      newMap.set(questionId, wrongCause);
+      this.qwcCauseMap = newMap;
+      if (result.id > 0) {
+        this.qwcIdMap.set(questionId, result.id);
+      }
+    } catch (e) {
+      const err = e as Error;
+      hilog.error(DOMAIN, TAG, 'selectQwc(q%{public}d, c%{public}d) failed: %{public}s',
+        questionId, wrongCause, err.message);
+    }
+    this.qwcMenuQuestionId = -1;
+  }
+
   private questionTypeName(qt: number): string {
     if (qt === 0) {
       return '单选';
@@ -1387,6 +1482,10 @@ export struct CourseDetailPage {
     }
     .hideTitleBar(true)
     .onBackPressed(() => {
+      if (this.qwcMenuQuestionId >= 0) {
+        this.qwcMenuQuestionId = -1;
+        return true;
+      }
       if (this.showQuickSubmit) {
         if (!this.quickSubmitting) {
           this.showQuickSubmit = false;
