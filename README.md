@@ -1,10 +1,10 @@
-# 爆改新能源 · HarmonyOS NEXT
+# 爆改旧能源 · HarmonyOS NEXT
 
 [![Build HAP](https://github.com/jerry-271828/xny-harmonyos-next/actions/workflows/build-hap.yml/badge.svg)](https://github.com/jerry-271828/xny-harmonyos-next/actions/workflows/build-hap.yml)
 ![HarmonyOS](https://img.shields.io/badge/HarmonyOS-NEXT-3367FF?logo=harmonyos)
 ![API](https://img.shields.io/badge/API-24-blue)
 
-将「爆改新能源」从 Android（`com.example.xny`，原作者 Aushen）移植到 **HarmonyOS NEXT**。
+将「爆改旧能源」从 Android（`com.example.xny`，原作者 Aushen）移植到 **HarmonyOS NEXT**。
 
 原 App 是 Android WebView 壳 + 油猴脚本；鸿蒙版以 **ArkTS/ArkUI 原生 UI** 为主体，直连后端 REST API，仅在「网页版兼容模式」中保留完整的 WebView 注入链路作为长尾功能回退。
 
@@ -60,7 +60,7 @@ push 到 `main` 自动用 HarmonyOS command-line-tools 构建 HAP，发布为 Gi
 
 ## 致谢
 
-- 原 Android 端「爆改新能源」—— **Aushen**
+- 原 Android 端「爆改旧能源」—— **Aushen**
 - 网页版兼容模式沿用原 APK 的 `main_pack.js` / `pack2.js` 油猴脚本
 
 ---
