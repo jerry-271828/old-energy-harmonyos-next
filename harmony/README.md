@@ -1,6 +1,6 @@
 # 爆改旧能源 · HarmonyOS NEXT
 
-把 `com.example.xny`（爆改新能源 5.0，原作者「Aushen」）移植到 **HarmonyOS NEXT**。
+把 `com.example.xny`（爆改旧能源 5.0，原作者「Aushen」）移植到 **HarmonyOS NEXT**。
 
 原 App 是 Android WebView 壳 + 油猴脚本；鸿蒙版以 **ArkTS/ArkUI 原生 UI** 为主体，直连后端 REST API（行为对照原 Vue 前端逆向而来），仅在「网页版兼容模式」中保留完整的 WebView 注入链路作为长尾功能回退。
 
