@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-「爆改新能源」HarmonyOS NEXT 移植版（原 Android 应用 `com.example.xny` 的鸿蒙端口）。
+「爆改旧能源」HarmonyOS NEXT 移植版（原 Android 应用 `com.example.xny` 的鸿蒙端口）。
 
 **重要：本项目已从「WebView 壳 + 油猴脚本」演进为原生优先的 ArkUI 应用。** 早期版本只是套壳跑原 APK 的三段油猴脚本；现在主体是用 ArkTS/ArkUI 重写的**原生 UI + 原生 REST 客户端**（直连后端，行为对照原 Vue 前端 `stu_app.js` 与油猴脚本逆向而来）。旧的 WebView+脚本注入链路**完整保留**，但已降级为隐藏的「网页版兼容模式」（`WebShellPage`），仅供原生未覆盖的长尾功能临时回退。
 
