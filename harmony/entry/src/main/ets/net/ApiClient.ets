@@ -1,6 +1,7 @@
 // 统一 HTTP 客户端：@ohos.net.http 封装。
 //   - BASE = https://bdfz.xnykcxt.com:5002/exam
-//   - 认证：X-Custom-Auth 头，DES/ECB/PKCS7 加密 {domain,userId,version,timestamp}
+//   - 认证：X-Custom-Auth 头，AES-256/CBC/PKCS7 加密 {domain,userId,version,timestamp}
+//     （网页端 4.0.1 已从 DES/ECB 升级为 AES/CBC，逆向确认见 utils/Aes.ets）
 //   - 响应统一解包 ApiResp{code,message,extra}，code!==0 抛 ApiError
 //   - 会话守护：HTTP 401/403 或业务码提示未登录时，回调 reloginProvider
 //     用记住的凭据静默重登一次再重试（对应油猴脚本"会话守护/自动登录"的原生化）
@@ -9,7 +10,7 @@
 import { http } from '@kit.NetworkKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { desEcbEncrypt } from '../utils/Des';
+import { aesCbcEncrypt } from '../utils/Aes';
 import { ApiResp, ApiError } from '../models/ApiTypes';
 import { ApiHeaders } from './ApiHeaders';
 
@@ -27,7 +28,8 @@ export class ApiClient {
   static readonly BASE: string = ApiClient.ORIGIN + '/exam';
   private static readonly AUTH_DOMAIN: string = 'bdfz.xnykcxt.com';
   private static readonly AUTH_VERSION: string = '4.0.1';
-  private static readonly DES_KEY_STR: string = '348ebfa6d1f9708310cb8a7f88367bc5';
+  // 32 字符密钥串：其 UTF-8 字节（32B）直接作为 AES-256 密钥（与网页端 CryptoJS 一致）。
+  private static readonly AES_KEY_STR: string = '348ebfa6d1f9708310cb8a7f88367bc5';
 
   private static userId: number = 0;
   private static token: string = '';
@@ -54,35 +56,14 @@ export class ApiClient {
   }
 
   static buildAuthHeader(): string {
+    // timestamp 为「秒」（网页端 4.0.1：Math.floor(Date.now()/1000)），非毫秒——实测确认。
     const payload: string = JSON.stringify({
       domain: ApiClient.AUTH_DOMAIN,
       userId: ApiClient.userId > 0 ? ApiClient.userId : '',
       version: ApiClient.AUTH_VERSION,
-      timestamp: Date.now()
+      timestamp: Math.floor(Date.now() / 1000)
     });
-    const keyBytes: number[] = ApiClient.toUtf8(ApiClient.DES_KEY_STR).slice(0, 8);
-    const plainBytes: number[] = ApiClient.toUtf8(payload);
-    const encrypted: number[] = desEcbEncrypt(keyBytes, plainBytes);
-    let hex = '';
-    for (let i = 0; i < encrypted.length; i++) {
-      hex += ('0' + encrypted[i].toString(16)).slice(-2);
-    }
-    return hex;
-  }
-
-  private static toUtf8(str: string): number[] {
-    const arr: number[] = [];
-    for (let i = 0; i < str.length; i++) {
-      const c = str.charCodeAt(i);
-      if (c < 0x80) {
-        arr.push(c);
-      } else if (c < 0x800) {
-        arr.push(0xC0 | (c >> 6), 0x80 | (c & 0x3F));
-      } else {
-        arr.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 0x3F), 0x80 | (c & 0x3F));
-      }
-    }
-    return arr;
+    return aesCbcEncrypt(ApiClient.AES_KEY_STR, payload);
   }
 
   // 拼绝对地址：传入 /api/... 或 /login/api/... 自动加 BASE；完整 URL 原样返回
